@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "nodemailer": "^6.10.1",
+    "socket.io": "^4.7.5"
+  },
+  "description": "CoCo Voice Chat Room - Ayome-style group voice chat web app prototype",
+  "main": "server.js",
+  "name": "coco-voice-chat-room",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "version": "1.0.0"
+}

@@ -1,0 +1,15 @@
+https://REPLACE-WITH-YOUR-SERVER-URL
+
+SHORT NOTE:
+1. Deploy the server first (see README "Phone users ke liye (APK se pehle)"),
+   then copy your https URL (example: https://coco-voice.onrender.com).
+2. Replace the placeholder line above with that real URL.
+3. In the wrapper's index.html, set window.COCO_SERVER_URL to this URL
+   BEFORE loading app.js, like this:
+
+   <script>window.COCO_SERVER_URL = "https://coco-voice.onrender.com";</script>
+   <script src="app.js"></script>
+
+   public/app.js already reads window.COCO_SERVER_URL: when it is set
+   (non-empty), the app connects to that server instead of the current
+   origin. When it is not set, behavior is unchanged.

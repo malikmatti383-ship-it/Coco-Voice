@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CoCo-Voice Chat Room</title>
+<link rel="icon" type="image/webp" href="logo.webp">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ AUTH ============ -->
+  <section id="view-auth" class="view active">
+    <div class="auth-card">
+      <button id="btn-lang" class="lang-btn" title="Language / زبان">🌐 اردو</button>
+      <img src="logo.webp" alt="CoCo" class="logo-img">
+      <h1>CoCo-Voice <span>Chat Room</span></h1>
+      <p class="tagline" data-i18n="tagline">Talk • Play • Gift • Shine</p>
+      <div class="tabs">
+        <button id="tab-login" class="tab active" data-i18n="login">Login</button>
+        <button id="tab-register" class="tab" data-i18n="register">Register</button>
+      </div>
+      <input id="auth-username" data-i18n-ph="usernamePh" placeholder="Username (3-20 letters/numbers)" maxlength="20" autocomplete="username">
+      <input id="auth-password" type="password" data-i18n-ph="passwordPh" placeholder="Password (4+ characters)" autocomplete="current-password">
+      <button id="auth-btn" class="btn primary" data-i18n="login">Login</button>
+      <p id="auth-error" class="error"></p>
+      <p class="hint" data-i18n="hint">New here? Register and get <b>100 coins + 200 beans</b> 🎉</p>
+    </div>
+  </section>
+
+  <!-- ============ LOBBY ============ -->
+  <section id="view-lobby" class="view">
+    <header class="topbar">
+      <img src="logo.webp" class="top-logo" alt="CoCo">
+      <div class="me" id="me-chip">
+        <span id="me-avatar" class="avatar">🙂</span>
+        <div><div id="me-name">—</div><div id="me-id" class="sub">ID: —</div></div>
+      </div>
+      <div class="coins-chip" title="Coins">🪙 <span id="me-coins">0</span></div>
+      <div class="coins-chip bean" title="Beans">🫘 <span id="me-beans">0</span></div>
+    </header>
+    <div class="lobby-tabs">
+      <button id="lobby-tab-all" class="ltab active" data-i18n="all">All</button>
+      <button id="lobby-tab-agency" class="ltab" data-i18n="agency">Agency</button>
+      <input id="room-search" data-i18n-ph="searchRooms" placeholder="🔍 Search rooms...">
+    </div>
+    <div class="lobby-actions">
+      <button id="btn-create-room" class="btn primary" data-i18n="createRoom">+ Create Room</button>
+    </div>
+    <div id="room-list" class="room-list"></div>
+    <nav class="bottomnav">
+      <button id="nav-lobby" class="bnav active">🏠<span data-i18n="home">Home</span></button>
+      <button id="nav-store" class="bnav">🏪<span data-i18n="store">Store</span></button>
+      <button id="nav-inbox" class="bnav">💌<span data-i18n="inbox">Inbox</span><b id="inbox-badge" class="badge hidden">0</b></button>
+      <button id="nav-me" class="bnav">👤<span data-i18n="me">Me</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ ROOM ============ -->
+  <section id="view-room" class="view">
+    <header class="topbar">
+      <button id="btn-leave-room" class="icon-btn">⬅</button>
+      <div class="room-title"><div id="room-name">Room</div><div id="room-online" class="sub">0 online</div></div>
+      <button id="btn-room-gifts" class="icon-btn">🎁</button>
+      <button id="btn-room-games" class="icon-btn">🎮</button>
+    </header>
+    <div id="vip-banner" class="vip-banner hidden"></div>
+    <div id="entry-banner" class="entry-banner hidden"></div>
+    <div id="seats" class="seats"></div>
+    <div id="gift-layer"></div>
+    <div class="room-controls">
+      <button id="btn-mic" class="ctl">🎤</button>
+      <button id="btn-hand" class="ctl">✋</button>
+      <button id="btn-leave-seat" class="ctl hidden">🪑⬇</button>
+      <button id="btn-lock" class="ctl hidden">🔓</button>
+    </div>
+    <div id="chat-box" class="chat-box"></div>
+    <div class="chat-input-row">
+      <input id="chat-input" data-i18n-ph="saySomething" placeholder="Say something..." maxlength="300">
+      <button id="btn-send-chat" class="btn primary" data-i18n="send">Send</button>
+    </div>
+    <!-- gift panel -->
+    <div id="gift-panel" class="sheet hidden">
+      <h3 data-i18n="sendGift">Send a Gift 🎁</h3>
+      <label><span data-i18n="to">To:</span> <select id="gift-target"></select></label>
+      <div id="gift-tabs" class="gtabs"></div>
+      <div id="gift-catalog" class="gift-catalog"></div>
+      <button id="gift-close" class="btn" data-i18n="close">Close</button>
+    </div>
+    <!-- games panel -->
+    <div id="games-panel" class="sheet hidden">
+      <h3 data-i18n="games">🎮 Games</h3>
+      <p class="sub" style="margin-bottom:8px">🫘 <span data-i18n="beansOnly">Games use beans only</span> — <b id="games-beans">0</b></p>
+      <div class="game">
+        <h4>🎲 <span data-i18n="diceRoll">Dice Roll</span> <span class="sub" data-i18n="betRangeBeans">bet 10–100 beans</span></h4>
+        <input id="dice-bet" type="number" min="10" max="100" value="10">
+        <button id="btn-dice" class="btn primary" data-i18n="roll">Roll</button>
+        <div id="dice-out" class="game-out"></div>
+      </div>
+      <div class="game">
+        <h4>🎡 <span data-i18n="luckyWheel">Lucky Wheel</span> <span class="sub" data-i18n="costs20beans">costs 20 beans</span></h4>
+        <div id="wheel" class="wheel">🎡</div>
+        <button id="btn-wheel" class="btn primary" data-i18n="spin">Spin</button>
+        <div id="wheel-out" class="game-out"></div>
+      </div>
+      <button id="games-close" class="btn" data-i18n="close">Close</button>
+    </div>
+    <!-- user card sheet -->
+    <div id="user-sheet" class="sheet hidden">
+      <div id="user-sheet-body"></div>
+      <button id="user-sheet-close" class="btn" data-i18n="close">Close</button>
+    </div>
+  </section>
+
+  <!-- ============ STORE ============ -->
+  <section id="view-store" class="view">
+    <header class="topbar">
+      <button id="btn-store-back" class="icon-btn">⬅</button>
+      <div class="room-title">🏪 <span data-i18n="store">Store</span></div>
+      <div class="coins-chip">🪙 <span id="store-coins">0</span></div>
+      <div class="coins-chip dia">💎 <span id="store-diamonds">0</span></div>
+    </header>
+    <div class="lobby-tabs">
+      <button class="ltab store-tab active" data-st="vip">👑 VIP</button>
+      <button class="ltab store-tab" data-st="frames" data-i18n="frames">🖼 Frames</button>
+      <button class="ltab store-tab" data-st="entries" data-i18n="entries">✨ Entries</button>
+    </div>
+    <div id="store-body" class="store-body"></div>
+    <nav class="bottomnav">
+      <button id="nav2-lobby" class="bnav">🏠<span data-i18n="home">Home</span></button>
+      <button id="nav2-store" class="bnav active">🏪<span data-i18n="store">Store</span></button>
+      <button id="nav2-inbox" class="bnav">💌<span data-i18n="inbox">Inbox</span></button>
+      <button id="nav2-me" class="bnav">👤<span data-i18n="me">Me</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ INBOX ============ -->
+  <section id="view-inbox" class="view">
+    <header class="topbar">
+      <button id="btn-inbox-back" class="icon-btn">⬅</button>
+      <div class="room-title">💌 <span data-i18n="inbox">Inbox</span></div>
+      <button id="btn-new-dm" class="btn small" data-i18n="newChat">+ New</button>
+    </header>
+    <div id="inbox-cards"></div>
+    <div id="inbox-list" class="inbox-list"></div>
+    <div id="thread-view" class="hidden">
+      <header class="topbar"><button id="btn-thread-back" class="icon-btn">⬅</button><div class="room-title" id="thread-name">—</div></header>
+      <div id="thread-msgs" class="chat-box" style="max-height:50vh"></div>
+      <div class="chat-input-row">
+        <input id="thread-input" data-i18n-ph="saySomething" placeholder="Say something..." maxlength="300">
+        <button id="btn-thread-send" class="btn primary" data-i18n="send">Send</button>
+      </div>
+    </div>
+    <nav class="bottomnav">
+      <button id="nav3-lobby" class="bnav">🏠<span data-i18n="home">Home</span></button>
+      <button id="nav3-store" class="bnav">🏪<span data-i18n="store">Store</span></button>
+      <button id="nav3-inbox" class="bnav active">💌<span data-i18n="inbox">Inbox</span></button>
+      <button id="nav3-me" class="bnav">👤<span data-i18n="me">Me</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ ME / PROFILE ============ -->
+  <section id="view-profile" class="view">
+    <header class="topbar">
+      <button id="btn-profile-back" class="icon-btn">⬅</button>
+      <div class="room-title" data-i18n="myProfile">My Profile</div>
+      <button id="btn-settings" class="icon-btn" title="Settings">⚙️</button>
+    </header>
+    <div class="profile-hero">
+      <div id="profile-frame-wrap" class="frame-wrap"><div id="profile-avatar-big" class="avatar big">🙂</div></div>
+      <h2 id="profile-name">—</h2>
+      <div id="profile-vip"></div>
+      <div id="profile-tags" class="tags"></div>
+      <div id="profile-couple" class="sub"></div>
+      <div class="stat4">
+        <div><b id="st-follow">0</b><span data-i18n="follow">Follow</span></div>
+        <div><b id="st-fans">0</b><span data-i18n="fans">Fans</span></div>
+        <div><b id="st-sent">0</b><span data-i18n="sent">Sent</span></div>
+        <div><b id="st-recv">0</b><span data-i18n="received">Receive</span></div>
+      </div>
+      <div class="stat-row"><span data-i18n="cocoId">CoCo ID</span><b id="profile-id">—</b></div>
+      <div class="stat-row"><span>🪙 <span data-i18n="coins">Coins</span></span><b id="profile-coins">—</b></div>
+      <div class="stat-row"><span>💎 <span data-i18n="diamonds">Diamonds</span></span><b id="profile-diamonds">—</b></div>
+      <div class="stat-row"><span>🫘 <span data-i18n="beans">Beans</span></span><b id="profile-beans">—</b></div>
+    </div>
+    <div class="lobby-tabs">
+      <button class="ltab ptab active" data-pt="dress" data-i18n="dress">Dress</button>
+      <button class="ltab ptab" data-pt="medal" data-i18n="medals">Medals</button>
+      <button class="ltab ptab" data-pt="relation" data-i18n="relationship">Relation</button>
+      <button class="ltab ptab" data-pt="gift" data-i18n="gifts">Gifts</button>
+      <button class="ltab ptab" data-pt="edit" data-i18n="edit">Edit</button>
+    </div>
+    <div id="profile-body" class="profile-body"></div>
+    <nav class="bottomnav">
+      <button id="nav4-lobby" class="bnav">🏠<span data-i18n="home">Home</span></button>
+      <button id="nav4-store" class="bnav">🏪<span data-i18n="store">Store</span></button>
+      <button id="nav4-inbox" class="bnav">💌<span data-i18n="inbox">Inbox</span></button>
+      <button id="nav4-me" class="bnav active">👤<span data-i18n="me">Me</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="view-settings" class="view">
+    <header class="topbar">
+      <button id="btn-settings-back" class="icon-btn">⬅</button>
+      <div class="room-title" data-i18n="settings">Settings</div>
+    </header>
+    <div class="admin-card">
+      <div class="set-row"><span data-i18n="language">Language</span><button id="btn-lang3" class="btn small">🌐 اردو / English</button></div>
+      <div class="set-row"><span data-i18n="logout">Logout</span><button id="btn-logout" class="btn danger small" data-i18n="logout">Logout</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>🎟️ <span data-i18n="redeemCode">Redeem Code</span></h3>
+      <p class="sub" data-i18n="redeemDesc">Got a BD / Agent / Host code? Paste it here.</p>
+      <input id="redeem-code" data-i18n-ph="codePh" placeholder="Enter code">
+      <button id="btn-redeem" class="btn primary" data-i18n="redeem">Redeem</button>
+      <p id="redeem-out" class="sub"></p>
+    </div>
+    <div class="admin-card hidden" id="set-adminplus">
+      <h3>🛡️ Admin Plus</h3>
+      <input id="ap-target" data-i18n-ph="userIdPh" placeholder="User CoCo ID">
+      <div style="display:flex;gap:8px">
+        <button id="btn-req-manager" class="btn primary" data-i18n="reqManager">Request Manager</button>
+        <button id="btn-req-reseller" class="btn primary" data-i18n="reqReseller">Request Reseller</button>
+      </div>
+      <p id="ap-out" class="sub"></p>
+    </div>
+    <div class="admin-card hidden" id="set-manager">
+      <h3>👔 Manager</h3>
+      <button id="btn-gen-bd" class="btn primary" data-i18n="genBdCode">Generate BD Code</button>
+      <p id="gen-bd-out" class="sub code-out"></p>
+    </div>
+    <div class="admin-card hidden" id="set-bd">
+      <h3>💼 BD</h3>
+      <button id="btn-gen-agent" class="btn primary" data-i18n="genAgentCode">Generate Agent Code</button>
+      <p id="gen-agent-out" class="sub code-out"></p>
+    </div>
+    <div class="admin-card hidden" id="set-agent">
+      <h3>🤝 Agent</h3>
+      <button id="btn-gen-host" class="btn primary" data-i18n="genHostCode">Generate Host Code</button>
+      <p id="gen-host-out" class="sub code-out"></p>
+    </div>
+    <div class="admin-card hidden" id="set-owner-link">
+      <h3>👑 Owner</h3>
+      <button id="btn-open-dashboard" class="btn primary" data-i18n="openDashboard">Open Owner Dashboard</button>
+    </div>
+    <div class="admin-card hidden" id="set-reseller-link">
+      <h3>💰 Reseller</h3>
+      <button id="btn-open-reseller" class="btn primary" data-i18n="resellerPanel">💰 Reseller Panel</button>
+    </div>
+  </section>
+
+  <!-- ============ OWNER DASHBOARD ============ -->
+  <section id="view-admin" class="view">
+    <header class="topbar">
+      <button id="btn-back-dash" class="icon-btn">⬅</button>
+      <div class="room-title">👑 <span data-i18n="ownerPanel">Owner Panel</span></div>
+    </header>
+    <div id="admin-lock" class="admin-card">
+      <p><span data-i18n="enterOwnerCode">Enter the</span> <b data-i18n="ownerCode">owner code</b> <span data-i18n="toUnlock">to unlock:</span></p>
+      <input id="admin-code" type="password" data-i18n-ph="ownerCodePh" placeholder="Owner code">
+      <button id="btn-admin-unlock" class="btn primary" data-i18n="unlock">Unlock</button>
+      <p id="admin-error" class="error"></p>
+    </div>
+    <div id="admin-tools" class="hidden">
+      <div class="lobby-tabs">
+        <button class="ltab dtab active" data-dt="stats" data-i18n="overview">📊 Overview</button>
+        <button class="ltab dtab" data-dt="users" data-i18n="users">👥 Users</button>
+        <button class="ltab dtab" data-dt="targets" data-i18n="targets">🎯 Targets</button>
+        <button class="ltab dtab" data-dt="agency" data-i18n="agency">🏢 Agency</button>
+        <button class="ltab dtab" data-dt="super" data-i18n="superOwner">👑 Super</button>
+      </div>
+      <div id="dash-body"></div>
+    </div>
+  </section>
+
+  <!-- ============ RESELLER ============ -->
+  <section id="view-reseller" class="view">
+    <header class="topbar">
+      <button id="btn-back-reseller" class="icon-btn">⬅</button>
+      <div class="room-title" data-i18n="resellerPanel">💰 Reseller Panel</div>
+    </header>
+    <div class="admin-card">
+      <p class="sub" data-i18n="resellerDesc">Sell coins: add coins to any user's account. Every sale is recorded in the reseller log.</p>
+      <input id="reseller-q" data-i18n-ph="buyerPh" placeholder="Buyer's CoCo ID or username">
+      <input id="reseller-amount" type="number" min="1" max="1000000" data-i18n-ph="coinsPh" placeholder="Coins to add">
+      <button id="btn-reseller-add" class="btn primary" data-i18n="addCoins">Add Coins 💰</button>
+      <p id="reseller-out" class="sub" style="margin-top:10px"></p>
+    </div>
+  </section>
+
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
