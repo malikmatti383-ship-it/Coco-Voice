@@ -241,6 +241,11 @@
       <button id="btn-gen-host" class="btn primary" data-i18n="genHostCode">Generate Host Code</button>
       <p id="gen-host-out" class="sub code-out"></p>
     </div>
+    <div class="admin-card" id="set-super">
+      <h3>👑 <span data-i18n="superOwner">Super Owner</span></h3>
+      <p class="sub" data-i18n="superSetupD">First-time setup: unlock with the super code, then grant yourself the Owner tag.</p>
+      <button id="btn-open-super" class="btn primary" data-i18n="superUnlockBtn">Super Unlock</button>
+    </div>
     <div class="admin-card hidden" id="set-owner-link">
       <h3>👑 Owner</h3>
       <button id="btn-open-dashboard" class="btn primary" data-i18n="openDashboard">Open Owner Dashboard</button>
@@ -248,6 +253,27 @@
     <div class="admin-card hidden" id="set-reseller-link">
       <h3>💰 Reseller</h3>
       <button id="btn-open-reseller" class="btn primary" data-i18n="resellerPanel">💰 Reseller Panel</button>
+    </div>
+  </section>
+
+  <!-- ============ SUPER UNLOCK (first-time owner setup, visible to everyone) ============ -->
+  <section id="view-super" class="view">
+    <header class="topbar">
+      <button id="btn-super-back" class="icon-btn">⬅</button>
+      <div class="room-title">👑 <span data-i18n="superOwner">Super Owner</span></div>
+    </header>
+    <div class="admin-card" id="super-lock">
+      <p class="sub" data-i18n="superLockD">Enter the super code to unlock owner setup.</p>
+      <input id="super-code" type="password" data-i18n-ph="superCodePh" placeholder="Super code">
+      <button id="btn-super-unlock" class="btn primary" data-i18n="unlock">Unlock</button>
+      <p id="super-error" class="error"></p>
+    </div>
+    <div class="admin-card hidden" id="super-tools">
+      <h3 data-i18n="makeOwnerT">Make yourself Owner</h3>
+      <p class="sub" data-i18n="makeOwnerD">Enter your CoCo ID or username, then tap the button.</p>
+      <input id="super-q" data-i18n-ph="superQPh" placeholder="CoCo ID or username">
+      <button id="btn-super-grant" class="btn primary" data-i18n="makeOwner">Make Owner</button>
+      <p id="super-out" class="sub" style="margin-top:10px"></p>
     </div>
   </section>
 

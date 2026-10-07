@@ -31,6 +31,10 @@ app.get('/', (req, res) => {
   const pub = path.join(__dirname, 'public', 'index.html');
   res.sendFile(fs.existsSync(pub) ? pub : path.join(__dirname, 'index.html'));
 });
+// First-time setup probe: true once any OWNER exists (client hides the standalone super setup card then)
+app.get('/api/has-owner', (req, res) => {
+  res.json({ hasOwner: users.some(u => hasTag(u, 'OWNER')) });
+});
 
 /* ============================ persistence ============================ */
 const DATA_DIR = path.join(__dirname, 'data');
@@ -48,7 +52,10 @@ function saveUsers() { jsave('users.json', users); }
 let settings = jload('settings.json', {});
 function saveSettings() { jsave('settings.json', settings); }
 if (!settings.ownerCode) { settings.ownerCode = config.OWNER_CODE; saveSettings(); }
-if (!settings.superCode) { settings.superCode = config.SUPER_CODE; saveSettings(); }
+// SUPER key: a Render env var (SUPER_CODE) always wins when set — this keeps the
+// secret out of the public GitHub repo and avoids editing config.js on a phone.
+if (process.env.SUPER_CODE) { settings.superCode = process.env.SUPER_CODE; saveSettings(); }
+else if (!settings.superCode) { settings.superCode = config.SUPER_CODE; saveSettings(); }
 const currentOwnerCode = () => settings.ownerCode;
 const currentSuperCode = () => settings.superCode;
 
@@ -1233,22 +1240,32 @@ io.on('connection', (socket) => {
   });
 
   /* ----- Gmail-verified key changes (super only) ----- */
+  // Email settings: Render env vars win when set (SUPER_EMAIL, SMTP_USER,
+  // SMTP_PASS, SMTP_HOST, SMTP_PORT), config.js is the fallback.
+  const mailCfg = () => ({
+    SUPER_EMAIL: process.env.SUPER_EMAIL || config.SUPER_EMAIL,
+    SMTP_USER: process.env.SMTP_USER || config.SMTP_USER,
+    SMTP_PASS: process.env.SMTP_PASS || config.SMTP_PASS,
+    SMTP_HOST: process.env.SMTP_HOST || config.SMTP_HOST,
+    SMTP_PORT: Number(process.env.SMTP_PORT || config.SMTP_PORT)
+  });
   function emailConfigured() {
-    const { SUPER_EMAIL, SMTP_USER, SMTP_PASS } = config;
+    const { SUPER_EMAIL, SMTP_USER, SMTP_PASS } = mailCfg();
     return SUPER_EMAIL && SMTP_USER && SMTP_PASS
       && !String(SUPER_EMAIL).includes('your-gmail')
       && !String(SMTP_USER).includes('your-gmail')
       && !String(SMTP_PASS).includes('xxxx');
   }
   async function sendVerificationEmail(which, code) {
+    const mc = mailCfg();
     const transporter = nodemailer.createTransport({
-      host: config.SMTP_HOST, port: config.SMTP_PORT, secure: false,
-      auth: { user: config.SMTP_USER, pass: config.SMTP_PASS }
+      host: mc.SMTP_HOST, port: mc.SMTP_PORT, secure: false,
+      auth: { user: mc.SMTP_USER, pass: mc.SMTP_PASS }
     });
     const keyName = which === 'super' ? 'SUPER key' : 'OWNER code';
     await transporter.sendMail({
-      from: `CoCo-Voice Chat Room <${config.SMTP_USER}>`,
-      to: config.SUPER_EMAIL,
+      from: `CoCo-Voice Chat Room <${mc.SMTP_USER}>`,
+      to: mc.SUPER_EMAIL,
       subject: 'CoCo-Voice Chat Room - Verification Code',
       text: `Your verification code to change the ${keyName} is:\n\n${code}\n\nEnter it in the app within 10 minutes. If you did not request this, ignore this email.`
     });
@@ -1261,7 +1278,7 @@ io.on('connection', (socket) => {
     if (newValue.length < 4 || newValue.length > 32)
       return socket.emit('superResult', { ok: false, error: 'New value must be 4-32 characters.' });
     if (!emailConfigured())
-      return socket.emit('superResult', { ok: false, error: 'Email not configured — set SUPER_EMAIL / SMTP_USER / SMTP_PASS in config.js first.' });
+      return socket.emit('superResult', { ok: false, error: 'Email not configured — set SUPER_EMAIL / SMTP_USER / SMTP_PASS in config.js or as Render env vars first.' });
     const code = String(Math.floor(100000 + Math.random() * 900000));
     pendingKeyChanges.set(user.id, { which, newValue, code, expiresAt: Date.now() + KEY_CHANGE_TTL_MS, attempts: 0 });
     try {
