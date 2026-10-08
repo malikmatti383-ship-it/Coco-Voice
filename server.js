@@ -1432,6 +1432,47 @@ io.on('connection', (socket) => {
     socket.emit('gameResult', { ok: true, game: 'wheel', cost: COST, prize, beans: user.beans });
   });
 
+  // Mora (rock-paper-scissors vs bot)
+  socket.on('mora', ({ token, bet, pick }) => {
+    const user = me(token); if (!user) return;
+    bet = Math.floor(Number(bet));
+    if (!(bet >= 10 && bet <= 100)) return socket.emit('gameResult', { ok: false, error: 'Bet 10–100 beans.' });
+    if ((user.beans || 0) < bet) return socket.emit('gameResult', { ok: false, error: 'Not enough beans.' });
+    const picks = ['rock', 'paper', 'scissors'];
+    if (!picks.includes(pick)) return socket.emit('gameResult', { ok: false, error: 'Pick rock/paper/scissors.' });
+    const bot = picks[Math.floor(Math.random() * 3)];
+    let result = 'draw', payout = bet; // draw = bet back
+    if ((pick === 'rock' && bot === 'scissors') || (pick === 'paper' && bot === 'rock') || (pick === 'scissors' && bot === 'paper')) {
+      result = 'win'; payout = bet * 2;
+    } else if (pick !== bot) { result = 'lose'; payout = 0; }
+    user.beans = user.beans - bet + payout;
+    saveUsers(); pushUserUpdate(user.id);
+    socket.emit('gameResult', { ok: true, game: 'mora', bet, pick, bot, result, payout, net: payout - bet, beans: user.beans });
+  });
+
+  // 777 slot machine (3 reels)
+  socket.on('slots777', ({ token, bet }) => {
+    const user = me(token); if (!user) return;
+    bet = Math.floor(Number(bet));
+    if (!(bet >= 10 && bet <= 100)) return socket.emit('gameResult', { ok: false, error: 'Bet 10–100 beans.' });
+    if ((user.beans || 0) < bet) return socket.emit('gameResult', { ok: false, error: 'Not enough beans.' });
+    const symbols = ['7️⃣', '🍒', '🍋', '⭐', '💎', '🔔'];
+    const r1 = symbols[Math.floor(Math.random() * symbols.length)];
+    const r2 = symbols[Math.floor(Math.random() * symbols.length)];
+    const r3 = symbols[Math.floor(Math.random() * symbols.length)];
+    let payout = 0, winType = '';
+    if (r1 === '7️⃣' && r2 === '7️⃣' && r3 === '7️⃣') { payout = bet * 10; winType = 'JACKPOT 777!'; }
+    else if (r1 === r2 && r2 === r3) { payout = bet * 5; winType = 'Triple!'; }
+    else if (r1 === r2 || r2 === r3 || r1 === r3) { payout = Math.floor(bet * 1.5); winType = 'Pair!'; }
+    user.beans = user.beans - bet + payout;
+    saveUsers(); pushUserUpdate(user.id);
+    socket.emit('gameResult', { ok: true, game: 'slots777', bet, reels: [r1, r2, r3], winType, payout, net: payout - bet, beans: user.beans });
+    if (payout > bet) {
+      const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+      if (r) io.to('room:' + r.id).emit('chatMsg', { sys: true, text: `🎰 ${user.displayName} hit ${winType} on 777 (+${payout - bet} beans)!`, ts: Date.now() });
+    }
+  });
+
   /* ----- WebRTC signaling relay ----- */
   socket.on('signal', ({ token, to, data }) => {
     const user = me(token); if (!user) return;

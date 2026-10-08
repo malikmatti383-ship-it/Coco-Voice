@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 <div id="app">
@@ -103,6 +103,22 @@
         <div id="wheel" class="wheel">🎡</div>
         <button id="btn-wheel" class="btn primary" data-i18n="spin">Spin</button>
         <div id="wheel-out" class="game-out"></div>
+      </div>
+      <div class="game">
+        <h4>✊ <span>Mora (Rock-Paper-Scissors)</span> <span class="sub">bet 10–100 beans</span></h4>
+        <input id="mora-bet" type="number" min="10" max="100" value="10">
+        <div style="display:flex;gap:8px;margin:8px 0">
+          <button class="btn primary mora-pick" data-pick="rock" style="flex:1">✊ Rock</button>
+          <button class="btn primary mora-pick" data-pick="paper" style="flex:1">✋ Paper</button>
+          <button class="btn primary mora-pick" data-pick="scissors" style="flex:1">✌️ Scissors</button>
+        </div>
+        <div id="mora-out" class="game-out"></div>
+      </div>
+      <div class="game">
+        <h4>🎰 <span>777 Slots</span> <span class="sub">bet 10–100 beans</span></h4>
+        <input id="slots-bet" type="number" min="10" max="100" value="10">
+        <button id="btn-slots" class="btn gold" style="width:100%">🎰 SPIN</button>
+        <div id="slots-out" class="game-out" style="font-size:32px;text-align:center"></div>
       </div>
       <button id="games-close" class="btn" data-i18n="close">Close</button>
     </div>
@@ -323,6 +339,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

@@ -486,15 +486,29 @@ $('btn-wheel').onclick=()=>{
   socket.emit('wheel',{token});
 };
 socket.on('gameResult', d=>{
-  if(!d.ok){ toast(d.error); $('dice-out').textContent=''; $('wheel-out').textContent=''; return; }
+  if(!d.ok){ toast(d.error); $('dice-out').textContent=''; $('wheel-out').textContent=''; const mo=$('mora-out'); if(mo) mo.textContent=''; const so=$('slots-out'); if(so) so.textContent=''; return; }
   $('games-beans').textContent=fmt(d.beans);
   if(d.game==='dice'){
     const faces=['','⚀','⚁','⚂','⚃','⚄','⚅'];
     $('dice-out').innerHTML=`${faces[d.roll]} Rolled <b>${d.roll}</b> — ${d.net>=0?`won <b style="color:#1cab87">+${d.net}</b>`:`lost <b style="color:#ff5b6a">${d.net}</b>`} 🫘`;
+  } else if(d.game==='mora'){
+    const em={rock:'✊',paper:'✋',scissors:'✌️'};
+    const col = d.result==='win' ? '#1cab87' : (d.result==='lose' ? '#ff5b6a' : '#A08070');
+    $('mora-out').innerHTML=`${em[d.pick]} vs ${em[d.bot]} — <b style="color:${col}">${d.result.toUpperCase()}</b> (${d.net>=0?'+':''}${d.net} 🫘)`;
+  } else if(d.game==='slots777'){
+    $('slots-out').innerHTML=`${d.reels.join(' ')}<br><span style="font-size:15px">${d.winType?`<b style="color:#B8860B">${d.winType}</b> ${d.net>=0?'+':''}${d.net} 🫘`:`<span style="color:#A08070">No win</span>`}</span>`;
   } else {
     setTimeout(()=>{ $('wheel-out').innerHTML=`🎉 You won <b style="color:#f5a623">${d.prize}</b> beans!`; },1800);
   }
 });
+document.querySelectorAll('.mora-pick').forEach(b=>b.onclick=()=>{
+  const bet=Math.floor(Number($('mora-bet').value));
+  $('mora-out').textContent='...'; socket.emit('mora',{token,bet,pick:b.dataset.pick});
+});
+$('btn-slots').onclick=()=>{
+  const bet=Math.floor(Number($('slots-bet').value));
+  $('slots-out').textContent='🎰🎰🎰'; socket.emit('slots777',{token,bet});
+};
 
 /* ================= WebRTC voice (mesh) ================= */
 let localStream=null, pcs={};
