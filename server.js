@@ -55,6 +55,17 @@ function jsave(name, obj) {
   fs.writeFileSync(path.join(DATA_DIR, name), JSON.stringify(obj, null, 2));
 }
 let users = jload('users.json', []);
+// Migrate legacy single-VIP users into the VIP inventory (top-level so it runs at startup)
+function migrateVipInventory(u) {
+  if (!Array.isArray(u.ownedVips)) u.ownedVips = [];
+  if (u.vip && !u.ownedVips.find(x => x.level === u.vip)) {
+    u.ownedVips.push({ level: u.vip, expires: u.vipExpires || (Date.now() + 30 * 864e5) });
+  }
+  if (!u.activeVip && u.vip) u.activeVip = u.vip;
+  if (u.activeVip && !u.vip) { const a = u.ownedVips.find(x => x.level === u.activeVip); u.vip = u.activeVip; u.vipExpires = a ? a.expires : 0; }
+}
+// Migrate all existing users into the VIP inventory (preserves every owned VIP)
+users.forEach(migrateVipInventory);
 function saveUsers() { jsave('users.json', users); }
 
 let settings = jload('settings.json', {});
@@ -294,7 +305,7 @@ function publicUser(u, full = false) {
   sweepExpiry(u);
   const o = {
     id: u.id, username: u.username, displayName: u.displayName, avatar: u.avatar,
-    vip: u.vip || 0, tags: u.tags || [],
+    vip: u.vip || 0, activeVip: u.activeVip || u.vip || 0, tags: u.tags || [],
     frame: activeFrameDef(u), coupleWith: u.coupleWith || null,
     followers: (u.followers || []).length, following: (u.following || []).length,
     sentGifts: u.sentGifts || 0, receivedCount: u.receivedGifts ? Object.values(u.receivedGifts).reduce((a, b) => a + b, 0) : 0,
@@ -302,6 +313,8 @@ function publicUser(u, full = false) {
   if (full) {
     o.coins = u.coins || 0; o.diamonds = u.diamonds || 0; o.beans = u.beans || 0;
     o.vipExpires = u.vipExpires || null;
+    o.activeVip = u.activeVip || u.vip || 0;
+    o.ownedVips = u.ownedVips || [];
     o.frames = u.frames || []; o.entries = u.entries || [];
     o.activeFrame = u.activeFrame || null;
     o.activeEntry = u.activeEntry || null;
@@ -405,7 +418,7 @@ io.on('connection', (socket) => {
       passHash: bcrypt.hashSync(password, 10),
       displayName: username,
       avatar: '🙂',
-      vip: 0, vipExpires: null, tags: [],
+      vip: 0, vipExpires: null, activeVip: 0, ownedVips: [], tags: [],
       coins: config.STARTING_COINS, diamonds: config.STARTING_DIAMONDS, beans: config.STARTING_BEANS,
       frames: [], entries: [], activeFrame: null, activeEntry: null,
       coupleWith: null, receivedGifts: {}, sentGifts: 0,
@@ -638,9 +651,19 @@ io.on('connection', (socket) => {
   /* ----- VIP shop ----- */
   function applyVipPurchase(u, level) {
     const now = Date.now();
-    if (u.vip === level && u.vipExpires && u.vipExpires > now) u.vipExpires += VIP_DAYS * 864e5;
-    else { u.vip = level; u.vipExpires = now + VIP_DAYS * 864e5; }
+    // VIP inventory: keep ALL owned VIPs, extend expiry on repurchase
+    if (!Array.isArray(u.ownedVips)) u.ownedVips = [];
+    const ex = u.ownedVips.find(x => x.level === level);
+    if (ex && ex.expires > now) ex.expires += VIP_DAYS * 864e5;
+    else if (ex) ex.expires = now + VIP_DAYS * 864e5;
+    else u.ownedVips.push({ level, expires: now + VIP_DAYS * 864e5 });
+    // Newly purchased VIP becomes the active one
+    u.activeVip = level;
+    // Keep legacy fields in sync for backward compat
+    const act = u.ownedVips.find(x => x.level === u.activeVip);
+    u.vip = u.activeVip; u.vipExpires = act ? act.expires : 0;
   }
+  // (migrateVipInventory is defined at top level)
   socket.on('buyVip', ({ token, level }) => {
     const user = me(token); if (!user) return socket.emit('vipResult', { ok: false, error: 'Login first.' });
     level = Number(level);
@@ -651,6 +674,16 @@ io.on('connection', (socket) => {
     applyVipPurchase(user, level);
     saveUsers(); pushUserUpdate(user.id);
     socket.emit('vipResult', { ok: true, user: publicUser(user, true), action: 'buy' });
+  });
+  socket.on('equipVip', ({ token, level }) => {
+    const user = me(token); if (!user) return socket.emit('vipResult', { ok: false, error: 'Login first.' });
+    level = Number(level);
+    migrateVipInventory(user);
+    const owned = (user.ownedVips || []).find(x => x.level === level && x.expires > Date.now());
+    if (!owned) return socket.emit('vipResult', { ok: false, error: 'You do not own this VIP (or it expired).' });
+    user.activeVip = level; user.vip = level; user.vipExpires = owned.expires;
+    saveUsers(); pushUserUpdate(user.id);
+    socket.emit('vipResult', { ok: true, user: publicUser(user, true), action: 'equip' });
   });
   socket.on('giftVip', ({ token, toUserId, level }) => {
     const user = me(token); if (!user) return socket.emit('vipResult', { ok: false, error: 'Login first.' });

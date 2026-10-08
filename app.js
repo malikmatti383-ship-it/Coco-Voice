@@ -177,7 +177,8 @@ function showView(id){ document.querySelectorAll('.view').forEach(v=>v.classList
 function toast(msg){ const el=$('toast'); el.textContent=msg; el.classList.remove('hidden'); clearTimeout(el._h); el._h=setTimeout(()=>el.classList.add('hidden'),2800); }
 function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function vipClass(v){ return v>0 ? 'vipn'+Math.min(8,v) : ''; }
-function nameHtml(u){ if(!u) return ''; return `<span class="${vipClass(u.vip)}">${u.vip>0?'👑 ':''}${esc(u.displayName)}</span>`; }
+function activeVipOf(u){ return (u && (u.activeVip || u.vip)) || 0; }
+function nameHtml(u){ if(!u) return ''; const av=activeVipOf(u); return `<span class="${vipClass(av)}">${av>0?'👑 ':''}${esc(u.displayName)}</span>`; }
 function tagsHtml(tags){
   const names = {ADMIN_PLUS:'ADMIN+', MANAGER:'MANAGER', BD:'BD', AGENT:'AGENT', RESELLER:'RESELLER', HOST:'HOST', OWNER:'OWNER'};
   return (tags||[]).map(x=>`<span class="tag tag-${x}">${names[x]||x}</span>`).join('');
@@ -682,20 +683,29 @@ function renderStore(){
   renderStoreChips();
   const body=$('store-body');
   if(storeTab==='vip'){
-    body.innerHTML=`<h3>👑 VIP 1–8 <span class="sub">(30 ${t('remainingDays')})</span></h3>`+
+    const now = Date.now();
+    const ownedMap = {};
+    (me.ownedVips || []).forEach(x => { if (x.expires > now) ownedMap[x.level] = x; });
+    const activeLevel = me.activeVip || me.vip || 0;
+    body.innerHTML = `<h3>👑 VIP 1–8 <span class="sub">(30 ${t('remainingDays')})</span></h3>` +
+    `<div class="sub" style="margin-bottom:8px">🎒 <b>${Object.keys(ownedMap).length}</b> owned — tap <b>Use</b> to equip</div>` +
     [1,2,3,4,5,6,7,8].map(l=>{
       const price=CATALOG.vipPrices[l];
-      const cur=me.vip===l;
-      return `<div class="vip-card"><div class="vhead"><span style="font-size:30px">👑</span>
-        <div><b class="${vipClass(l)}">${VIP_NAMES[l]}</b><div class="vprice">🪙 ${fmt(price)}</div></div></div>
-        ${cur&&me.vipExpires?`<div class="sub">${t('vipExpires')}: ${new Date(me.vipExpires).toLocaleDateString()}</div>`:''}
+      const owned=ownedMap[l];
+      const isActive=activeLevel===l;
+      const daysLeft=owned?Math.ceil((owned.expires-now)/864e5):0;
+      return `<div class="vip-card" ${isActive?'style="border-color:var(--gold);box-shadow:var(--gold-shadow)"':''}><div class="vhead"><span style="font-size:30px">👑</span>
+        <div><b class="${vipClass(l)}">${VIP_NAMES[l]}</b><div class="vprice">🪙 ${fmt(price)}</div>
+        ${owned?`<div class="sub" style="color:${isActive?'#B8860B':'var(--dim)'}">${isActive?'✅ Active':'🎒 Owned'} — ${daysLeft} ${t('remainingDays')} left</div>`:'<div class="sub">Not owned</div>'}</div></div>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-          <button class="btn primary small" data-buyvip="${l}">${t('buyVip')}${cur?' +':' '}</button>
+          <button class="btn primary small" data-buyvip="${l}">${t('buyVip')}${owned?' +':''}</button>
+          ${owned && !isActive ? `<button class="btn gold small" data-equipvip="${l}">✨ Use</button>` : ''}
           <input data-gvip-to="${l}" placeholder="${t('toUserPh')}" type="number" style="flex:1;min-width:110px;margin:0">
           <button class="btn small" data-giftvip="${l}">${t('giftVip')}</button>
         </div></div>`;
     }).join('');
     body.querySelectorAll('[data-buyvip]').forEach(b=>b.onclick=()=>socket.emit('buyVip',{token,level:Number(b.dataset.buyvip)}));
+    body.querySelectorAll('[data-equipvip]').forEach(b=>b.onclick=()=>socket.emit('equipVip',{token,level:Number(b.dataset.equipvip)}));
     body.querySelectorAll('[data-giftvip]').forEach(b=>b.onclick=()=>{
       const inp=body.querySelector(`[data-gvip-to="${b.dataset.giftvip}"]`);
       if(inp&&inp.value) socket.emit('giftVip',{token,toUserId:Number(inp.value),level:Number(b.dataset.giftvip)});
