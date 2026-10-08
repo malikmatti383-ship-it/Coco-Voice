@@ -1027,6 +1027,7 @@ io.on('connection', (socket) => {
     a.members = a.members || [];
     if (!a.members.includes(t.id)) a.members.push(t.id);
     saveAgencies();
+    officialNotify(t.id, 'Agency Joined', `Welcome to ${a.name}!\n\nYou have joined the agency. Good luck!\n\n— CoCo Official`);
     socket.emit('agencyResult', { ok: true, action: 'memberAdded', agency: a });
   });
   socket.on('agencyRemoveMember', ({ token, agencyId, userId }) => {
@@ -1046,6 +1047,14 @@ io.on('connection', (socket) => {
   /* ----- notify helper ----- */
   function notifyUser(userId, ev, data) {
     for (const [sid, c] of conns) if (c.userId === userId) io.to(sid).emit(ev, data);
+  }
+  /* ----- SUPER OFFICIAL notifications ----- */
+  const OFFICIAL_ID = -1; // system sender
+  function officialNotify(userId, title, text) {
+    messages.push({ id: nextMsgId++, fromId: OFFICIAL_ID, toId: userId, kind: 'text', text: `📢 ${title}\n\n${text}`, ts: Date.now(), read: false });
+    saveMessages();
+    const t = getUser(userId);
+    notifyUser(userId, 'dmNotify', { from: { id: OFFICIAL_ID, displayName: 'SUPER OFFICIAL', avatar: '📢' }, text: `📢 ${title}` });
   }
 
   /* ----- roles & promotion chain -----
@@ -1178,7 +1187,7 @@ io.on('connection', (socket) => {
       const otherId = m.fromId === user.id ? m.toId : m.fromId;
       const cur = conv.get(otherId);
       if (!cur || m.ts > cur.ts) {
-        const other = getUser(otherId);
+        const other = otherId === OFFICIAL_ID ? { displayName: '📢 SUPER OFFICIAL', avatar: '📢' } : getUser(otherId);
         conv.set(otherId, {
           otherId, otherName: other ? other.displayName : '—', otherAvatar: other ? other.avatar : '🙂',
           lastText: m.kind === 'card' ? (m.cardType === 'couple' ? '💑 Couple request' : '📋 Request') : m.text,
@@ -1288,6 +1297,7 @@ io.on('connection', (socket) => {
     normalizeTags(t);
     if (!t.tags.includes(tag)) t.tags.push(tag);
     saveUsers(); pushUserUpdate(t.id);
+    officialNotify(t.id, 'Role Granted', `Congratulations ${t.displayName}!\n\nYou have been appointed as ${tag}.\n\n— CoCo Official`);
     socket.emit('ownerDone', { action: 'grantTag', user: publicUser(t, true) });
   });
   socket.on('ownerRevokeTag', ({ token, userId, tag }) => {
@@ -1671,6 +1681,7 @@ io.on('connection', (socket) => {
     t.coins = (t.coins || 0) + amount;
     saveUsers(); pushUserUpdate(user.id); pushUserUpdate(t.id);
     logResellerGrant({ resellerId: user.id, resellerName: user.displayName, targetId: t.id, targetName: t.displayName, amount, resellerBalanceAfter: user.coins });
+    officialNotify(t.id, 'Coins Received', `You received ${amount.toLocaleString()} coins from reseller ${user.displayName}.\n\n— CoCo Official`);
     socket.emit('resellerResult', { ok: true, user: publicUser(t), amount, yourBalance: user.coins });
   });
 
