@@ -465,7 +465,11 @@ function addChatMsg(m){
   const box=$('chat-box');
   const div=document.createElement('div');
   if(m.sys){ div.className='chat-msg sys'; div.textContent=m.text; }
-  else{ div.className='chat-msg'; div.innerHTML=`<span class="bubble"><span class="cn ${vipClass(m.user.vip)}">${esc(m.user.displayName)}</span>: ${esc(m.text)}</span>`; }
+  else{
+    const av=activeVipOf(m.user);
+    const badges=`${av>0?'👑':''}<span class="lvl-badge lvl-wealth" style="font-size:10px;padding:1px 6px">💰${m.user.wealthLevel||1}</span>`;
+    div.className='chat-msg'; div.innerHTML=`<span class="bubble"><span class="cn ${vipClass(av)}">${esc(m.user.displayName)}</span> ${badges}: ${esc(m.text)}</span>`;
+  }
   box.appendChild(div); box.scrollTop=box.scrollHeight;
 }
 socket.on('chatMsg', addChatMsg);
@@ -622,7 +626,8 @@ function renderProfile(){
   $('profile-avatar-big').textContent=u.avatar;
   $('profile-frame-wrap').className='frame-wrap '+(u.frame?'fr-'+u.frame:'');
   $('profile-name').innerHTML=nameHtml(u);
-  $('profile-vip').innerHTML=vipBadgeHtml(u.vip, u.vipExpires);
+  $('profile-vip').innerHTML=vipBadgeHtml(activeVipOf(u), u.vipExpires)+
+    ` <span class="lvl-badge lvl-wealth">💰 ${u.wealthLevel||1}</span> <span class="lvl-badge lvl-charm">💖 ${u.charmLevel||1}</span>`;
   $('profile-tags').innerHTML=tagsHtml(u.tags);
   $('profile-couple').innerHTML = u.coupleWith ? `${t('myPartner')}: <b>${esc(u.coupleName||('ID '+u.coupleWith))}</b> 💑` : `<span class="sub">${t('noPartner')}</span>`;
   $('st-follow').textContent=u.following||0; $('st-fans').textContent=u.followers||0;
@@ -632,7 +637,7 @@ function renderProfile(){
   const svipShort=$('profile-vip-short');
   if(svipShort) svipShort.textContent = u.vip>0 ? ('VIP '+u.vip+' ›') : 'GO ›';
   const lvlShort=$('profile-level-short');
-  if(lvlShort) lvlShort.textContent = 'Lv.'+(u.level||0)+' ›';
+  if(lvlShort) lvlShort.textContent=`💰${u.wealthLevel||1} 💖${u.charmLevel||1} ›`;
   document.querySelectorAll('.ptab').forEach(x=>x.classList.toggle('hidden', !isSelf && x.dataset.pt==='edit'));
   renderProfileBody();
 }
@@ -640,9 +645,33 @@ function myDressItem(kind, id){
   const list = kind==='frame' ? (me.frames||[]) : (me.entries||[]);
   return list.find(x=>x.id===id);
 }
+function renderLevelTab(body){
+  const u = viewingUser || me;
+  const wp = u.wealthProgress || { level: 1, pct: 0, cur: 0, next: 100, need: 100 };
+  const cp = u.charmProgress || { level: 1, pct: 0, cur: 0, next: 100, need: 100 };
+  const bar = (pct, cls) => `<div style="background:#f0e6d8;border-radius:999px;height:10px;overflow:hidden;margin:6px 0"><div class="${cls}" style="width:${pct}%;height:100%;border-radius:999px"></div></div>`;
+  body.innerHTML = `
+    <h3>⭐ Levels</h3>
+    <div class="vip-card">
+      <div class="vhead"><span style="font-size:32px">💰</span>
+        <div><b>Wealth Level ${wp.level}</b><div class="sub">Earn by spending coins</div></div>
+        <span class="lvl-badge lvl-wealth" style="margin-left:auto">Lv.${wp.level}</span></div>
+      ${bar(wp.pct, 'lvl-wealth')}
+      <div class="sub">${fmt(wp.cur)} / ${wp.next ? fmt(wp.next) : 'MAX'} XP ${wp.need ? `(${fmt(wp.need)} to go)` : ''}</div>
+    </div>
+    <div class="vip-card">
+      <div class="vhead"><span style="font-size:32px">💖</span>
+        <div><b>Charm Level ${cp.level}</b><div class="sub">Earn by receiving gifts</div></div>
+        <span class="lvl-badge lvl-charm" style="margin-left:auto">Lv.${cp.level}</span></div>
+      ${bar(cp.pct, 'lvl-charm')}
+      <div class="sub">${fmt(cp.cur)} / ${cp.next ? fmt(cp.next) : 'MAX'} XP ${cp.need ? `(${fmt(cp.need)} to go)` : ''}</div>
+    </div>
+    <p class="sub" style="margin-top:8px">💡 Send gifts & buy VIP/frames to raise Wealth. Receive gifts to raise Charm!</p>`;
+}
 function renderProfileBody(){
   const body=$('profile-body');
   if(profileTab==='edit'){ renderEditTab(body); return; }
+  if(profileTab==='level'){ renderLevelTab(body); return; }
   if(profileTab==='medal'){
     const medals=[];
     if(me.vip>0) medals.push({e:'👑',n:VIP_NAMES[me.vip]});

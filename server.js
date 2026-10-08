@@ -299,6 +299,36 @@ function sweepExpiry(u) {
 }
 function activeFrameDef(u) { return u.activeFrame && FRAME_MAP[u.activeFrame] ? u.activeFrame : null; }
 
+// Wealth/Charm level system (Ayome-style)
+// Wealth XP: earned by SPENDING coins (gifts sent, VIP/frame/entry purchases)
+// Charm XP: earned by RECEIVING gifts (gift value)
+const LEVEL_THRESHOLDS = [0, 100, 500, 2000, 8000, 25000, 80000, 250000, 800000, 2500000, 8000000, 25000000];
+function xpToLevel(xp) {
+  xp = Number(xp) || 0;
+  let lvl = 1;
+  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+    if (xp >= LEVEL_THRESHOLDS[i]) lvl = i + 1;
+    else break;
+  }
+  return Math.min(lvl, LEVEL_THRESHOLDS.length);
+}
+function levelProgress(xp) {
+  xp = Number(xp) || 0;
+  const lvl = xpToLevel(xp);
+  if (lvl >= LEVEL_THRESHOLDS.length) return { level: lvl, pct: 100, cur: xp, next: null };
+  const cur = LEVEL_THRESHOLDS[lvl - 1], next = LEVEL_THRESHOLDS[lvl];
+  const pct = Math.min(100, Math.round(((xp - cur) / (next - cur)) * 100));
+  return { level: lvl, pct, cur: xp, next, need: next - xp };
+}
+function addWealthXp(u, amount) {
+  if (!u || !(amount > 0)) return;
+  u.wealthXp = (u.wealthXp || 0) + Math.floor(amount);
+}
+function addCharmXp(u, amount) {
+  if (!u || !(amount > 0)) return;
+  u.charmXp = (u.charmXp || 0) + Math.floor(amount);
+}
+
 // Public user object. full=true for self / owner dashboard (includes balances & dress).
 function publicUser(u, full = false) {
   if (!u) return null;
@@ -309,12 +339,15 @@ function publicUser(u, full = false) {
     frame: activeFrameDef(u), coupleWith: u.coupleWith || null,
     followers: (u.followers || []).length, following: (u.following || []).length,
     sentGifts: u.sentGifts || 0, receivedCount: u.receivedGifts ? Object.values(u.receivedGifts).reduce((a, b) => a + b, 0) : 0,
+    wealthLevel: xpToLevel(u.wealthXp), charmLevel: xpToLevel(u.charmXp),
   };
   if (full) {
     o.coins = u.coins || 0; o.diamonds = u.diamonds || 0; o.beans = u.beans || 0;
     o.vipExpires = u.vipExpires || null;
     o.activeVip = u.activeVip || u.vip || 0;
     o.ownedVips = u.ownedVips || [];
+    o.wealthXp = u.wealthXp || 0; o.charmXp = u.charmXp || 0;
+    o.wealthProgress = levelProgress(u.wealthXp); o.charmProgress = levelProgress(u.charmXp);
     o.frames = u.frames || []; o.entries = u.entries || [];
     o.activeFrame = u.activeFrame || null;
     o.activeEntry = u.activeEntry || null;
@@ -461,6 +494,7 @@ io.on('connection', (socket) => {
       displayName: username,
       avatar: '🙂',
       vip: 0, vipExpires: null, activeVip: 0, ownedVips: [], tags: [],
+      wealthXp: 0, charmXp: 0,
       coins: config.STARTING_COINS, diamonds: config.STARTING_DIAMONDS, beans: config.STARTING_BEANS,
       frames: [], entries: [], activeFrame: null, activeEntry: null,
       coupleWith: null, receivedGifts: {}, sentGifts: 0,
@@ -827,6 +861,11 @@ io.on('connection', (socket) => {
     }
     // weekly points (diamonds count as price*100 points)
     addWeeklyPoints(user.id, currency === 'coin' ? gift.price : gift.price * 100);
+    // Wealth/Charm XP: sender earns wealth XP, receiver earns charm XP
+    const xpValue = currency === 'coin' ? gift.price : gift.price * 10;
+    addWealthXp(user, xpValue);
+    if (!isSelfGift) addCharmXp(target, xpValue);
+    else addCharmXp(user, xpValue); // self-gift counts for both
     saveUsers(); pushUserUpdate(user.id); pushUserUpdate(target.id);
     io.to('room:' + r.id).emit('giftEvent', {
       from: publicUser(user), to: publicUser(target), gift, bonus,
@@ -863,6 +902,7 @@ io.on('connection', (socket) => {
     if ((user.coins || 0) < price) return socket.emit('vipResult', { ok: false, error: 'Not enough coins.' });
     user.coins -= price;
     applyVipPurchase(user, level);
+    addWealthXp(user, price);
     saveUsers(); pushUserUpdate(user.id);
     socket.emit('vipResult', { ok: true, user: publicUser(user, true), action: 'buy' });
   });
@@ -904,6 +944,7 @@ io.on('connection', (socket) => {
     const expires = Date.now() + days * 864e5;
     const ex = list.find(x => x.id === itemId);
     if (ex) ex.expires = Math.max(ex.expires, expires); else list.push({ id: itemId, expires });
+    addWealthXp(user, price);
     saveUsers(); pushUserUpdate(user.id);
     socket.emit('dressResult', { ok: true, action: 'buy', user: publicUser(user, true) });
   });
