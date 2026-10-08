@@ -238,6 +238,13 @@ $('btn-store-back').onclick=goLobby; $('btn-inbox-back').onclick=goLobby; $('btn
 $('btn-settings').onclick=()=>{ renderSettings(); showView('view-settings'); };
 $('btn-settings-back').onclick=goMe;
 $('btn-lang').onclick=cycleLang; $('btn-lang3').onclick=cycleLang;
+// Ayome-style profile menu
+$('pm-store').onclick=()=>showView('view-store');
+$('pm-dress').onclick=()=>{ profileTab='dress'; document.querySelectorAll('.ptab').forEach(x=>x.classList.toggle('active',x.dataset.pt==='dress')); renderProfileBody(); $('profile-body').scrollIntoView(); };
+$('pm-level').onclick=()=>{ profileTab='level'; renderProfileBody(); $('profile-body').scrollIntoView(); };
+$('pm-settings').onclick=()=>{ renderSettings(); showView('view-settings'); };
+$('balance-card-coins').onclick=()=>showView('view-store');
+$('balance-card-svip').onclick=()=>showView('view-store');
 
 /* ================= lobby ================= */
 $('lobby-tab-all').onclick=()=>{ lobbyTab='all'; renderLobbyTabs(); filterRooms(); };
@@ -555,8 +562,10 @@ function renderProfile(){
   $('st-sent').textContent=fmt(u.sentGifts); $('st-recv').textContent=fmt(u.receivedCount);
   $('profile-id').textContent=u.id;
   $('profile-coins').textContent=fmt(u.coins)+' 🪙';
-  $('profile-diamonds').textContent=fmt(u.diamonds)+' 💎';
-  $('profile-beans').textContent=fmt(u.beans)+' 🫘';
+  const svipShort=$('profile-vip-short');
+  if(svipShort) svipShort.textContent = u.vip>0 ? ('VIP '+u.vip+' ›') : 'GO ›';
+  const lvlShort=$('profile-level-short');
+  if(lvlShort) lvlShort.textContent = 'Lv.'+(u.level||0)+' ›';
   document.querySelectorAll('.ptab').forEach(x=>x.classList.toggle('hidden', !isSelf && x.dataset.pt==='edit'));
   renderProfileBody();
 }

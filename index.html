@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 <div id="app">
@@ -180,9 +180,24 @@
         <div><b id="st-recv">0</b><span data-i18n="received">Receive</span></div>
       </div>
       <div class="stat-row"><span data-i18n="cocoId">CoCo ID</span><b id="profile-id">—</b></div>
-      <div class="stat-row"><span>🪙 <span data-i18n="coins">Coins</span></span><b id="profile-coins">—</b></div>
-      <div class="stat-row"><span>💎 <span data-i18n="diamonds">Diamonds</span></span><b id="profile-diamonds">—</b></div>
-      <div class="stat-row"><span>🫘 <span data-i18n="beans">Beans</span></span><b id="profile-beans">—</b></div>
+    </div>
+    <div style="padding:0 12px">
+      <div class="balance-cards">
+        <div class="balance-card coins" id="balance-card-coins">
+          <div class="bc-title">Balance</div>
+          <div class="bc-sub"><b id="profile-coins">0</b> 🪙</div>
+        </div>
+        <div class="balance-card svip" id="balance-card-svip">
+          <div class="bc-title">SVIP</div>
+          <div class="bc-sub" id="profile-vip-short">GO ›</div>
+        </div>
+      </div>
+      <div class="profile-menu">
+        <div class="profile-menu-item" id="pm-store"><span class="pm-icon">🏪</span><span data-i18n="store">Store</span><span class="pm-arrow">›</span></div>
+        <div class="profile-menu-item" id="pm-dress"><span class="pm-icon">👗</span><span data-i18n="myDress">My dress</span><span class="pm-arrow">›</span></div>
+        <div class="profile-menu-item" id="pm-level"><span class="pm-icon">⭐</span><span data-i18n="level">Level</span><span class="pm-arrow" id="profile-level-short">›</span></div>
+        <div class="profile-menu-item" id="pm-settings"><span class="pm-icon">⚙️</span><span data-i18n="settings">Settings</span><span class="pm-arrow">›</span></div>
+      </div>
     </div>
     <div class="lobby-tabs">
       <button class="ltab ptab active" data-pt="dress" data-i18n="dress">Dress</button>
@@ -308,6 +323,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
