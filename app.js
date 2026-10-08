@@ -543,7 +543,7 @@ $('btn-wheel').onclick=()=>{
   socket.emit('wheel',{token});
 };
 socket.on('gameResult', d=>{
-  if(!d.ok){ toast(d.error); $('dice-out').textContent=''; $('wheel-out').textContent=''; const mo=$('mora-out'); if(mo) mo.textContent=''; const so=$('slots-out'); if(so) so.textContent=''; return; }
+  if(!d.ok){ toast(d.error); $('dice-out').textContent=''; $('wheel-out').textContent=''; const mo=$('mora-out'); if(mo) mo.textContent=''; const so=$('slots-out'); if(so) so.textContent=''; const co=$('chicken-out'); if(co) co.textContent=''; return; }
   $('games-beans').textContent=fmt(d.beans);
   if(d.game==='dice'){
     const faces=['','⚀','⚁','⚂','⚃','⚄','⚅'];
@@ -554,6 +554,24 @@ socket.on('gameResult', d=>{
     $('mora-out').innerHTML=`${em[d.pick]} vs ${em[d.bot]} — <b style="color:${col}">${d.result.toUpperCase()}</b> (${d.net>=0?'+':''}${d.net} 🫘)`;
   } else if(d.game==='slots777'){
     $('slots-out').innerHTML=`${d.reels.join(' ')}<br><span style="font-size:15px">${d.winType?`<b style="color:#B8860B">${d.winType}</b> ${d.net>=0?'+':''}${d.net} 🫘`:`<span style="color:#A08070">No win</span>`}</span>`;
+  } else if(d.game==='chicken'){
+    const out=$('chicken-out');
+    if(d.phase==='started'){
+      chickenBtns(false,true,false); chickenRoad(0);
+      out.innerHTML=`Bet <b>${d.bet}</b> 🫘 — Next: <b style="color:#1cab87">${d.nextMult.toFixed(2)}x</b>`;
+    } else if(d.phase==='moved'){
+      chickenBtns(false,true,true); chickenRoad(d.lane);
+      out.innerHTML=`Lane ${d.lane} — <b style="color:#1cab87">${d.mult.toFixed(2)}x</b> = <b>${d.cashout}</b> 🫘<br><span class="sub">Next: ${d.nextMult.toFixed(2)}x — Go or Cash Out?</span>`;
+    } else if(d.phase==='crashed'){
+      chickenBtns(true,false,false); chickenRoad(d.lane);
+      out.innerHTML=`💥 <b style="color:#ff5b6a">CRASHED!</b> Lost ${d.lost} 🫘 at lane ${d.lane}`;
+    } else if(d.phase==='cashout'){
+      chickenBtns(true,false,false);
+      out.innerHTML=`💰 Cashed out <b style="color:#1cab87">+${d.net}</b> 🫘 (${d.mult.toFixed(2)}x)!`;
+    } else if(d.phase==='maxwin'){
+      chickenBtns(true,false,false); chickenRoad(d.lane);
+      out.innerHTML=`🏆 <b style="color:#B8860B">MAX WIN!</b> ${d.won} 🫘 (${d.mult.toFixed(2)}x)!`;
+    }
   } else {
     setTimeout(()=>{ $('wheel-out').innerHTML=`🎉 You won <b style="color:#f5a623">${d.prize}</b> beans!`; },1800);
   }
@@ -566,6 +584,25 @@ $('btn-slots').onclick=()=>{
   const bet=Math.floor(Number($('slots-bet').value));
   $('slots-out').textContent='🎰🎰🎰'; socket.emit('slots777',{token,bet});
 };
+/* Chicken Rush */
+function chickenBtns(start, go, cash){
+  $('btn-chicken-start').disabled=!start;
+  $('btn-chicken-go').disabled=!go;
+  $('btn-chicken-cash').disabled=!cash;
+}
+function chickenRoad(lane){
+  let s='🐔';
+  for(let i=0;i<lane;i++) s+='—';
+  s+='💨🏁';
+  $('chicken-road').textContent=s;
+}
+$('btn-chicken-start').onclick=()=>{
+  const bet=Math.floor(Number($('chicken-bet').value));
+  $('chicken-out').textContent='🐔 Ready...'; chickenRoad(0);
+  socket.emit('chickenStart',{token,bet});
+};
+$('btn-chicken-go').onclick=()=>{ $('chicken-out').textContent='🐔💨...'; socket.emit('chickenGo',{token}); };
+$('btn-chicken-cash').onclick=()=>socket.emit('chickenCashout',{token});
 
 /* ================= WebRTC voice (mesh) ================= */
 let localStream=null, pcs={};

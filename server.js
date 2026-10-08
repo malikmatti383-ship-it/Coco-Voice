@@ -1743,6 +1743,58 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Chicken Rush 🐔 — cross lanes, multiplier grows, cash out before crash!
+  const chickenGames = new Map(); // socketId -> {bet, lane, mult, active}
+  const CHICKEN_MULTS = [1.01, 1.05, 1.09, 1.14, 1.20, 1.27, 1.35, 1.44, 1.54, 1.65, 1.77, 1.90, 2.04, 2.20, 2.37];
+  socket.on('chickenStart', ({ token, bet }) => {
+    const user = me(token); if (!user) return;
+    bet = Math.floor(Number(bet));
+    if (!(bet >= 10 && bet <= 500)) return socket.emit('gameResult', { ok: false, error: 'Bet 10–500 beans.' });
+    if ((user.beans || 0) < bet) return socket.emit('gameResult', { ok: false, error: 'Not enough beans.' });
+    user.beans -= bet;
+    saveUsers(); pushUserUpdate(user.id);
+    chickenGames.set(socket.id, { bet, lane: 0, mult: 1.00, active: true });
+    socket.emit('gameResult', { ok: true, game: 'chicken', phase: 'started', bet, lane: 0, mult: 1.00, nextMult: CHICKEN_MULTS[0], beans: user.beans });
+  });
+  socket.on('chickenGo', ({ token }) => {
+    const user = me(token); if (!user) return;
+    const g = chickenGames.get(socket.id);
+    if (!g || !g.active) return socket.emit('gameResult', { ok: false, error: 'Start a game first.' });
+    // Crash chance grows per lane: 8% + lane*1.5%
+    const crashChance = 0.08 + (g.lane * 0.015);
+    if (Math.random() < crashChance) {
+      g.active = false; chickenGames.delete(socket.id);
+      saveUsers(); pushUserUpdate(user.id);
+      return socket.emit('gameResult', { ok: true, game: 'chicken', phase: 'crashed', bet: g.bet, lane: g.lane, lost: g.bet, beans: user.beans });
+    }
+    g.lane++;
+    g.mult = CHICKEN_MULTS[Math.min(g.lane - 1, CHICKEN_MULTS.length - 1)];
+    const cashout = Math.floor(g.bet * g.mult);
+    const nextMult = CHICKEN_MULTS[Math.min(g.lane, CHICKEN_MULTS.length - 1)] || g.mult * 1.08;
+    // Max lanes reached = auto cashout
+    if (g.lane >= CHICKEN_MULTS.length) {
+      g.active = false; chickenGames.delete(socket.id);
+      user.beans += cashout;
+      saveUsers(); pushUserUpdate(user.id);
+      return socket.emit('gameResult', { ok: true, game: 'chicken', phase: 'maxwin', bet: g.bet, lane: g.lane, mult: g.mult, won: cashout, beans: user.beans });
+    }
+    socket.emit('gameResult', { ok: true, game: 'chicken', phase: 'moved', bet: g.bet, lane: g.lane, mult: g.mult, cashout, nextMult, beans: user.beans });
+  });
+  socket.on('chickenCashout', ({ token }) => {
+    const user = me(token); if (!user) return;
+    const g = chickenGames.get(socket.id);
+    if (!g || !g.active) return socket.emit('gameResult', { ok: false, error: 'No active game.' });
+    g.active = false; chickenGames.delete(socket.id);
+    const won = Math.floor(g.bet * g.mult);
+    user.beans += won;
+    saveUsers(); pushUserUpdate(user.id);
+    socket.emit('gameResult', { ok: true, game: 'chicken', phase: 'cashout', bet: g.bet, lane: g.lane, mult: g.mult, won, net: won - g.bet, beans: user.beans });
+    if (won > g.bet * 1.5) {
+      const c = conns.get(socket.id); const r = c ? rooms.get(c.roomId) : null;
+      if (r) io.to('room:' + r.id).emit('chatMsg', { sys: true, text: `🐔 ${user.displayName} cashed out ${won} beans (${g.mult.toFixed(2)}x) on Chicken Rush!`, ts: Date.now() });
+    }
+  });
+
   /* ----- WebRTC signaling relay ----- */
   socket.on('signal', ({ token, to, data }) => {
     const user = me(token); if (!user) return;
