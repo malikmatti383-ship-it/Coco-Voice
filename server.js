@@ -47,12 +47,73 @@ app.get('/api/has-owner', (req, res) => {
 /* ============================ persistence ============================ */
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+/* ----- MongoDB (durable storage — survives redeploys) ----- */
+let mongoDb = null, mongoReady = false;
+const MONGO_URI = process.env.MONGODB_URI || '';
+async function mongoInit() {
+  if (!MONGO_URI) { console.log('[mongo] MONGODB_URI not set — using local JSON files'); return; }
+  try {
+    const { MongoClient } = require('mongodb');
+    const client = new MongoClient(MONGO_URI, { serverSelectionTimeoutMS: 8000 });
+    await client.connect();
+    mongoDb = client.db('cocovoice');
+    mongoReady = true;
+    console.log('[mongo] connected ✅');
+    await mongoMigrate(); // one-time: JSON files -> MongoDB
+  } catch (e) {
+    console.log('[mongo] connect failed, using local JSON files:', e.message);
+    mongoReady = false;
+  }
+}
+// One-time migration: if MongoDB is empty but JSON files have data, copy them up
+async function mongoMigrate() {
+  if (!mongoReady) return;
+  try {
+    const count = await mongoDb.collection('kv').countDocuments();
+    if (count > 0) { console.log('[mongo] kv already has data, skip migration'); return; }
+    const names = ['users.json', 'settings.json', 'agencies.json', 'messages.json', 'requests.json', 'codes.json', 'weekly.json', 'targets.json'];
+    let migrated = 0;
+    for (const n of names) {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, n), 'utf8'));
+        if (data !== undefined && data !== null) {
+          await mongoDb.collection('kv').insertOne({ _id: n.replace('.json', ''), data, migratedAt: new Date() });
+          migrated++;
+        }
+      } catch (e) { /* file missing — skip */ }
+    }
+    console.log(`[mongo] migrated ${migrated} JSON files to MongoDB ✅`);
+  } catch (e) { console.log('[mongo] migration error:', e.message); }
+}
+// Async save to MongoDB (fire-and-forget, never blocks)
+function mongoSave(name, obj) {
+  if (!mongoReady) return;
+  mongoDb.collection('kv').updateOne(
+    { _id: name.replace('.json', '') },
+    { $set: { data: obj, updatedAt: new Date() } },
+    { upsert: true }
+  ).catch(e => console.log('[mongo] save error:', e.message));
+}
+// Sync load from MongoDB at startup (called before jload usage)
+async function mongoLoadAll() {
+  if (!mongoReady) return null;
+  try {
+    const docs = await mongoDb.collection('kv').find({}).toArray();
+    const out = {};
+    for (const d of docs) out[d._id + '.json'] = d.data;
+    console.log(`[mongo] loaded ${docs.length} keys from MongoDB`);
+    return out;
+  } catch (e) { console.log('[mongo] load error:', e.message); return null; }
+}
+
 function jload(name, fallback) {
   try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, name), 'utf8')); }
   catch (e) { return fallback; }
 }
 function jsave(name, obj) {
-  fs.writeFileSync(path.join(DATA_DIR, name), JSON.stringify(obj, null, 2));
+  try { fs.writeFileSync(path.join(DATA_DIR, name), JSON.stringify(obj, null, 2)); } catch (e) {}
+  mongoSave(name, obj); // also persist to MongoDB when connected
 }
 let users = jload('users.json', []);
 // Migrate legacy single-VIP users into the VIP inventory (top-level so it runs at startup)
@@ -134,10 +195,35 @@ function logResellerGrant(entry) {
   fs.appendFileSync(path.join(DATA_DIR, 'reseller_log.json'), line);
 }
 
-let nextCoCoId = Math.max(config.FIRST_COCO_ID - 1, users.reduce((m, u) => Math.max(m, u.id || 0), 0)) + 1;
-let nextRoomId = 1, nextAgencyId = 1, nextMsgId = 1, nextReqId = 1;
-nextAgencyId = Math.max(1, agencies.reduce((m, a) => Math.max(m, a.id || 0), 0)) + 1;
-nextMsgId = Math.max(1, messages.reduce((m, x) => Math.max(m, x.id || 0), 0)) + 1;
+function recalcIds() {
+  nextCoCoId = Math.max(config.FIRST_COCO_ID - 1, users.reduce((m, u) => Math.max(m, u.id || 0), 0)) + 1;
+  nextAgencyId = Math.max(1, agencies.reduce((m, a) => Math.max(m, a.id || 0), 0)) + 1;
+  nextMsgId = Math.max(1, messages.reduce((m, x) => Math.max(m, x.id || 0), 0)) + 1;
+  nextReqId = Math.max(1, requests.reduce((m, x) => Math.max(m, x.id || 0), 0)) + 1;
+}
+let nextCoCoId = 1, nextRoomId = 1, nextAgencyId = 1, nextMsgId = 1, nextReqId = 1;
+recalcIds();
+
+// After MongoDB connects: reload in-memory data from MongoDB (source of truth)
+async function mongoReload() {
+  const data = await mongoLoadAll();
+  if (!data || Object.keys(data).length === 0) return;
+  if (data['users.json']) { users = data['users.json']; users.forEach(migrateVipInventory); }
+  if (data['settings.json']) settings = data['settings.json'];
+  if (data['agencies.json']) agencies = data['agencies.json'];
+  if (data['messages.json']) messages = data['messages.json'];
+  if (data['requests.json']) requests = data['requests.json'];
+  if (data['codes.json']) codes = data['codes.json'];
+  if (data['weekly.json']) weekly = data['weekly.json'];
+  if (data['targets.json']) targets = data['targets.json'];
+  // Re-apply settings defaults (in case MongoDB has old shape)
+  if (!settings.ownerCode) settings.ownerCode = config.OWNER_CODE;
+  if (!settings.superCode) settings.superCode = process.env.SUPER_CODE || config.SUPER_CODE;
+  recalcIds();
+  console.log(`[mongo] reloaded: ${users.length} users, ${messages.length} messages ✅`);
+}
+// Start MongoDB in background (non-blocking)
+mongoInit().then(() => mongoReload()).catch(e => console.log('[mongo] init error:', e.message));
 nextReqId = Math.max(1, requests.reduce((m, x) => Math.max(m, x.id || 0), 0)) + 1;
 
 /* ============================ catalogs ============================ */
