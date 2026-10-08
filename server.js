@@ -1795,6 +1795,76 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Luxury Car 🏎️ — bet on car logos, wheel spins, win multiplier!
+  const LUXURY_CARS = [
+    { id: 'bmw', name: 'BMW', emoji: '🔵', mult: 2 },
+    { id: 'vw', name: 'VW', emoji: '🔷', mult: 5 },
+    { id: 'mercedes', name: 'Mercedes', emoji: '⭐', mult: 8 },
+    { id: 'jaguar', name: 'Jaguar', emoji: '🐆', mult: 18 },
+    { id: 'landrover', name: 'Land Rover', emoji: '🟢', mult: 20 },
+    { id: 'porsche', name: 'Porsche', emoji: '🛡️', mult: 30 },
+    { id: 'lambo', name: 'Lamborghini', emoji: '🐂', mult: 50 },
+    { id: 'ferrari', name: 'Ferrari', emoji: '🐎', mult: 66 },
+    { id: 'bentley', name: 'Bentley', emoji: '🪽', mult: 88 },
+    { id: 'bugatti', name: 'Bugatti', emoji: '🔴', mult: 100 },
+  ];
+  const luxuryBets = new Map(); // socketId -> {carId: amount}
+  socket.on('luxuryBet', ({ token, carId, chip }) => {
+    const user = me(token); if (!user) return;
+    chip = Math.floor(Number(chip));
+    if (![10, 100, 500, 1000, 5000].includes(chip))
+      return socket.emit('gameResult', { ok: false, error: 'Pick a chip: 10/100/500/1K/5K.' });
+    const car = LUXURY_CARS.find(c => c.id === carId);
+    if (!car) return socket.emit('gameResult', { ok: false, error: 'Pick a car.' });
+    if ((user.beans || 0) < chip) return socket.emit('gameResult', { ok: false, error: 'Not enough beans.' });
+    user.beans -= chip;
+    const bets = luxuryBets.get(socket.id) || {};
+    bets[carId] = (bets[carId] || 0) + chip;
+    luxuryBets.set(socket.id, bets);
+    const totalBet = Object.values(bets).reduce((a, b) => a + b, 0);
+    saveUsers(); pushUserUpdate(user.id);
+    socket.emit('gameResult', { ok: true, game: 'luxury', phase: 'bet', bets, totalBet, beans: user.beans, cars: LUXURY_CARS });
+  });
+  socket.on('luxurySpin', ({ token }) => {
+    const user = me(token); if (!user) return;
+    const bets = luxuryBets.get(socket.id);
+    if (!bets || Object.keys(bets).length === 0)
+      return socket.emit('gameResult', { ok: false, error: 'Place a bet first!' });
+    // Weighted random: higher multiplier = rarer
+    const weights = LUXURY_CARS.map(c => 100 / c.mult);
+    const totalW = weights.reduce((a, b) => a + b, 0);
+    let roll = Math.random() * totalW, winner = LUXURY_CARS[0];
+    for (let i = 0; i < LUXURY_CARS.length; i++) {
+      roll -= weights[i];
+      if (roll <= 0) { winner = LUXURY_CARS[i]; break; }
+    }
+    const winAmount = (bets[winner.id] || 0) * winner.mult;
+    const totalBet = Object.values(bets).reduce((a, b) => a + b, 0);
+    luxuryBets.delete(socket.id);
+    user.beans += winAmount;
+    saveUsers(); pushUserUpdate(user.id);
+    socket.emit('gameResult', {
+      ok: true, game: 'luxury', phase: 'spin',
+      winner, winAmount, totalBet, net: winAmount - totalBet,
+      beans: user.beans, cars: LUXURY_CARS
+    });
+    if (winAmount > totalBet) {
+      const c = conns.get(socket.id); const r = c ? rooms.get(c.roomId) : null;
+      if (r) io.to('room:' + r.id).emit('chatMsg', { sys: true, text: `🏎️ ${user.displayName} won ${winAmount} beans on ${winner.name} (x${winner.mult})!`, ts: Date.now() });
+    }
+  });
+  socket.on('luxuryClear', ({ token }) => {
+    const user = me(token); if (!user) return;
+    const bets = luxuryBets.get(socket.id);
+    if (bets) {
+      const total = Object.values(bets).reduce((a, b) => a + b, 0);
+      user.beans += total; // refund
+      luxuryBets.delete(socket.id);
+      saveUsers(); pushUserUpdate(user.id);
+    }
+    socket.emit('gameResult', { ok: true, game: 'luxury', phase: 'clear', bets: {}, totalBet: 0, beans: user.beans, cars: LUXURY_CARS });
+  });
+
   /* ----- WebRTC signaling relay ----- */
   socket.on('signal', ({ token, to, data }) => {
     const user = me(token); if (!user) return;

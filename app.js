@@ -239,7 +239,7 @@ const GAME_CARDS = [
   { id: 'dice', name: 'Dice Roll', emoji: '🎲', color: 'linear-gradient(135deg,#42a5f5,#1e88e5)', playable: true },
   { id: 'mora', name: 'Mora', emoji: '✊', color: 'linear-gradient(135deg,#ffa726,#fb8c00)', playable: true },
   { id: 'wheel', name: 'Lucky Wheel', emoji: '🎡', color: 'linear-gradient(135deg,#ec407a,#d81b60)', playable: true },
-  { id: 'luxurycar', name: 'Luxury Car', emoji: '🏎️', color: 'linear-gradient(135deg,#7e57c2,#5e35b1)', playable: false },
+  { id: 'luxurycar', name: 'Luxury Car', emoji: '🏎️', color: 'linear-gradient(135deg,#7e57c2,#5e35b1)', playable: true },
   { id: 'greedy', name: 'Greedy Pro', emoji: '🐘', color: 'linear-gradient(135deg,#26a69a,#00897b)', playable: false },
   { id: 'football', name: 'Bounty Football', emoji: '⚽', color: 'linear-gradient(135deg,#5c6bc0,#3949ab)', playable: false },
   { id: 'teenpatti', name: 'TeenPatti 2', emoji: '🃏', color: 'linear-gradient(135deg,#ef5350,#e53935)', playable: false },
@@ -614,6 +614,20 @@ socket.on('gameResult', d=>{
       chickenBtns(true,false,false); chickenRoad(d.lane);
       out.innerHTML=`🏆 <b style="color:#B8860B">MAX WIN!</b> ${d.won} 🫘 (${d.mult.toFixed(2)}x)!`;
     }
+  } else if(d.game==='luxury'){
+    if(d.cars) { luxuryCars = d.cars; renderLuxury(); }
+    if(d.phase==='bet'){
+      updateLuxuryBets(d.bets);
+      $('luxury-total').textContent = fmt(d.totalBet);
+      $('luxury-out').textContent = '';
+    } else if(d.phase==='spin'){
+      updateLuxuryBets({});
+      $('luxury-total').textContent = '0';
+      const win = d.net > 0;
+      $('luxury-out').innerHTML = `🏎️ <b>${d.winner.emoji} ${d.winner.name}</b> wins (x${d.winner.mult})!<br>${win ? `<b style="color:#1cab87">+${d.net}</b>` : `<b style="color:#ff5b6a">${d.net}</b>`} 🫘`;
+    } else if(d.phase==='clear'){
+      updateLuxuryBets({}); $('luxury-total').textContent = '0'; $('luxury-out').textContent = '';
+    }
   } else {
     setTimeout(()=>{ $('wheel-out').innerHTML=`🎉 You won <b style="color:#f5a623">${d.prize}</b> beans!`; },1800);
   }
@@ -645,6 +659,37 @@ $('btn-chicken-start').onclick=()=>{
 };
 $('btn-chicken-go').onclick=()=>{ $('chicken-out').textContent='🐔💨...'; socket.emit('chickenGo',{token}); };
 $('btn-chicken-cash').onclick=()=>socket.emit('chickenCashout',{token});
+/* Luxury Car */
+let luxuryChip = 100, luxuryCars = [];
+function renderLuxury(){
+  $('luxury-chips').innerHTML = [10,100,500,1000,5000].map(c =>
+    `<button class="btn small ${luxuryChip===c?'gold':''}" data-chip="${c}">${c>=1000?(c/1000)+'K':c}</button>`).join('');
+  $('luxury-chips').querySelectorAll('[data-chip]').forEach(b => b.onclick = () => {
+    luxuryChip = Number(b.dataset.chip); renderLuxury();
+  });
+  if (luxuryCars.length) {
+    $('luxury-cars').innerHTML = luxuryCars.map(c =>
+      `<div class="luxury-car" data-car="${c.id}" style="background:#fff;border:2px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer">
+        <div style="font-size:28px">${c.emoji}</div>
+        <div style="font-size:10px;font-weight:700">${c.name}</div>
+        <div style="font-size:11px;color:var(--gold-d);font-weight:800">x${c.mult}</div>
+        <div class="luxury-bet" style="font-size:10px;color:var(--dim)"></div>
+      </div>`).join('');
+    $('luxury-cars').querySelectorAll('.luxury-car').forEach(el => el.onclick = () => {
+      socket.emit('luxuryBet', { token, carId: el.dataset.car, chip: luxuryChip });
+    });
+  }
+}
+function updateLuxuryBets(bets){
+  document.querySelectorAll('.luxury-car').forEach(el => {
+    const amt = (bets||{})[el.dataset.car] || 0;
+    el.querySelector('.luxury-bet').textContent = amt ? fmt(amt)+' 🫘' : '';
+    el.style.borderColor = amt ? 'var(--gold)' : 'var(--line)';
+  });
+}
+$('btn-luxury-spin').onclick=()=>{ $('luxury-out').textContent='🏎️💨 Spinning...'; socket.emit('luxurySpin',{token}); };
+$('btn-luxury-clear').onclick=()=>socket.emit('luxuryClear',{token});
+renderLuxury();
 
 /* ================= WebRTC voice (mesh) ================= */
 let localStream=null, pcs={};

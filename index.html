@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=25">
+<link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 <div id="app">
@@ -131,6 +131,19 @@
           <button id="btn-chicken-cash" class="btn" style="flex:1" disabled>💰 Cash Out</button>
         </div>
         <div id="chicken-out" class="game-out" style="text-align:center;font-weight:700"></div>
+      </div>
+      <div class="game" style="background:linear-gradient(135deg,#f3e5f5,#e1bee7)">
+        <h4>🏎️ <span>Luxury Car</span> <span class="sub">bet on cars, win multipliers!</span></h4>
+        <div style="display:flex;gap:6px;justify-content:center;margin:8px 0" id="luxury-chips">
+          ${''}
+        </div>
+        <div id="luxury-cars" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0"></div>
+        <div style="display:flex;gap:8px">
+          <button id="btn-luxury-spin" class="btn gold" style="flex:2">🏎️ SPIN</button>
+          <button id="btn-luxury-clear" class="btn small" style="flex:1">Clear</button>
+        </div>
+        <div id="luxury-out" class="game-out" style="text-align:center"></div>
+        <div class="sub" style="text-align:center">Total bet: <b id="luxury-total">0</b> 🫘</div>
       </div>
       <button id="games-close" class="btn" data-i18n="close">Close</button>
     </div>
@@ -383,6 +396,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=25"></script>
+<script src="app.js?v=26"></script>
 </body>
 </html>
