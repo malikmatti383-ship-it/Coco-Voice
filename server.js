@@ -340,12 +340,54 @@ function roomPublic(r) {
     agencyId: r.agencyId || null, agencyName: agencyName(r.agencyId),
   };
 }
+/* ----- room moderation helpers (top-level) ----- */
+const isRoomHost = (user, r) => user && r && r.hostId === user.id;
+const isSupervisor = (user, r) => user && r && (r.supervisors || []).includes(user.id);
+const isAdmin = (user, r) => user && r && (r.admins || []).includes(user.id);
+const canModerate = (user, r) => isRoomHost(user, r) || isSupervisor(user, r) || isAdmin(user, r);
+const canLockAll = (user, r) => isRoomHost(user, r) || isSupervisor(user, r);
+function canKick(kicker, target, r) {
+  if (!kicker || !target || !r) return false;
+  if (target.id === r.hostId) return false;
+  if (isRoomHost(kicker, r)) return true;
+  if (isSupervisor(kicker, r)) {
+    if (isSupervisor(target, r)) return false;
+    return true;
+  }
+  if (isAdmin(kicker, r)) {
+    if (isSupervisor(target, r) || isAdmin(target, r)) return false;
+    return true;
+  }
+  return false;
+}
+const KICK_DURATIONS = {
+  '1min': 60e3, '10min': 600e3, '1hour': 3600e3, '1day': 86400e3,
+  '7days': 7*86400e3, '1month': 30*86400e3, '6months': 180*86400e3, '1year': 365*86400e3
+};
+const KICK_LABELS = {
+  '1min': '1 minute', '10min': '10 minutes', '1hour': '1 hour', '1day': '1 day',
+  '7days': '7 days', '1month': '1 month', '6months': '6 months', '1year': '1 year'
+};
+function sweepKicks(r) {
+  if (!r || !r.kicks) return;
+  const now = Date.now();
+  r.kicks = r.kicks.filter(k => k.expires > now);
+}
+function isKicked(user, r) {
+  if (!user || !r) return null;
+  sweepKicks(r);
+  return (r.kicks || []).find(k => k.userId === user.id) || null;
+}
 function roomState(r) {
+  sweepKicks(r);
   return {
     id: r.id, name: r.name, locked: !!r.password, hostId: r.hostId,
     agencyId: r.agencyId || null, agencyName: agencyName(r.agencyId),
     seats: r.seats.map(s => s ? { userId: s.userId, muted: s.muted, hand: !!s.hand, user: publicUser(getUser(s.userId)) } : null),
-    chat: r.chat.slice(-60)
+    chat: r.chat.slice(-60),
+    admins: r.admins || [], supervisors: r.supervisors || [],
+    kicks: (r.kicks || []).map(k => ({ userId: k.userId, byName: k.byName, expires: k.expires })),
+    lockedSeats: r.lockedSeats || {}, allLocked: !!r.allLocked,
   };
 }
 function emitRooms() { io.emit('rooms', [...rooms.values()].map(roomPublic)); }
@@ -513,7 +555,12 @@ io.on('connection', (socket) => {
     const r = {
       id: nextRoomId++, name, password: String(password || '').slice(0, 20),
       hostId: user.id, agencyId: ag ? ag.id : null,
-      members: new Set(), seats: Array(9).fill(null), chat: []
+      members: new Set(), seats: Array(9).fill(null), chat: [],
+      // Room moderation (Ayome-style hierarchy)
+      admins: [], supervisors: [],           // user IDs
+      kicks: [],                              // {userId, byId, byName, expires, reason}
+      lockedSeats: {},                        // seatIndex -> true
+      allLocked: false,
     };
     rooms.set(r.id, r);
     joinRoomDo(socket, user, r, '');
@@ -524,6 +571,12 @@ io.on('connection', (socket) => {
     if (!user) return socket.emit('roomError', 'Please log in first.');
     const r = rooms.get(Number(roomId));
     if (!r) return socket.emit('roomError', 'Room no longer exists.');
+    // Block kicked users until expiry
+    const kick = isKicked(user, r);
+    if (kick) {
+      const mins = Math.ceil((kick.expires - Date.now()) / 60000);
+      return socket.emit('roomError', `You are kicked from this room by ${kick.byName} (${mins} min left).`);
+    }
     joinRoomDo(socket, user, r, password);
   });
 
@@ -564,7 +617,7 @@ io.on('connection', (socket) => {
   });
 
   /* ----- host controls ----- */
-  const isRoomHost = (user, r) => user && r && r.hostId === user.id;
+  // (moderation helpers are defined at top level)
   socket.on('hostMute', ({ token, seat, muted }) => {
     const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
     if (!isRoomHost(user, r)) return;
@@ -572,12 +625,146 @@ io.on('connection', (socket) => {
     if (r.seats[seat]) { r.seats[seat].muted = !!muted; broadcastRoom(r); io.to(r.seats[seat].socketId).emit('forceMute', { muted: !!muted }); }
   });
   socket.on('hostKick', ({ token, seat }) => {
+    // Legacy: quick kick (10 min) — use roomKick for durations
     const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
-    if (!isRoomHost(user, r)) return;
+    if (!r) return;
     seat = Number(seat);
-    const s = r.seats[seat]; if (!s || s.userId === r.hostId) return;
-    const target = io.sockets.sockets.get(s.socketId);
-    if (target) { leaveRoomSocket(target); target.emit('kicked'); target.emit('roomLeft'); }
+    const s = r.seats[seat]; if (!s) return;
+    const target = getUser(s.userId); if (!target) return;
+    if (!canKick(user, target, r)) return socket.emit('roomError', 'You cannot kick this user.');
+    doKick(user, target, r, '10min');
+  });
+  // Full kick with duration: 1min|10min|1hour|1day|7days|1month|6months|1year
+  function doKick(kicker, target, r, durationKey) {
+    const dur = KICK_DURATIONS[durationKey] || KICK_DURATIONS['10min'];
+    const label = KICK_LABELS[durationKey] || KICK_LABELS['10min'];
+    const now = Date.now();
+    sweepKicks(r);
+    // Remove existing kick for this user, add new
+    r.kicks = (r.kicks || []).filter(k => k.userId !== target.id);
+    r.kicks.push({ userId: target.id, byId: kicker.id, byName: kicker.displayName, expires: now + dur, at: now });
+    // Remove from seat if seated
+    for (let i = 0; i < r.seats.length; i++) {
+      if (r.seats[i] && r.seats[i].userId === target.id) { r.seats[i] = null; break; }
+    }
+    broadcastRoom(r);
+    // Notify kicked user: who kicked + how long
+    for (const [sid, cc] of conns) {
+      if (cc.userId === target.id && cc.roomId === r.id) {
+        const sock = io.sockets.sockets.get(sid);
+        if (sock) {
+          sock.emit('kicked', { by: kicker.displayName, duration: label, expires: now + dur, roomId: r.id });
+          leaveRoomSocket(sock);
+          sock.emit('roomLeft');
+        }
+      }
+    }
+    io.to('room:' + r.id).emit('chatMsg', { sys: true, text: `🚫 ${target.displayName} was kicked by ${kicker.displayName} (${label})`, ts: Date.now() });
+  }
+  socket.on('roomKick', ({ token, userId, duration }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    const target = getUser(Number(userId)); if (!target) return socket.emit('roomError', 'User not found.');
+    if (!canKick(user, target, r)) return socket.emit('roomError', 'You cannot kick this user.');
+    if (!KICK_DURATIONS[duration]) return socket.emit('roomError', 'Invalid duration.');
+    doKick(user, target, r, duration);
+    socket.emit('roomDone', { action: 'kicked', userId: target.id });
+  });
+  socket.on('roomUnkick', ({ token, userId }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    if (!isRoomHost(user, r) && !isSupervisor(user, r)) return socket.emit('roomError', 'Owner/Supervisor only.');
+    r.kicks = (r.kicks || []).filter(k => k.userId !== Number(userId));
+    broadcastRoom(r);
+    socket.emit('roomDone', { action: 'unkicked', userId: Number(userId) });
+  });
+  // Appoint/remove admin (owner + supervisor can appoint; only owner can remove)
+  socket.on('roomSetAdmin', ({ token, userId, make }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    userId = Number(userId);
+    if (make) {
+      if (!isRoomHost(user, r) && !isSupervisor(user, r)) return socket.emit('roomError', 'Owner/Supervisor only.');
+      if (userId === r.hostId) return socket.emit('roomError', 'Owner is already in charge.');
+      if (!(r.admins || []).includes(userId)) { r.admins.push(userId); }
+    } else {
+      if (!isRoomHost(user, r)) return socket.emit('roomError', 'Only the owner can remove admins.');
+      r.admins = (r.admins || []).filter(id => id !== userId);
+    }
+    broadcastRoom(r);
+    const t = getUser(userId);
+    io.to('room:' + r.id).emit('chatMsg', { sys: true, text: make ? `⭐ ${t ? t.displayName : 'User '+userId} is now an admin` : `⭐ Admin removed`, ts: Date.now() });
+    socket.emit('roomDone', { action: make ? 'adminAdded' : 'adminRemoved', userId });
+  });
+  // Appoint/remove supervisor (owner only; max 5 per room)
+  socket.on('roomSetSupervisor', ({ token, userId, make }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    if (!isRoomHost(user, r)) return socket.emit('roomError', 'Only the owner can manage supervisors.');
+    userId = Number(userId);
+    if (make) {
+      if (userId === r.hostId) return socket.emit('roomError', 'Owner is already in charge.');
+      if ((r.supervisors || []).length >= 5 && !(r.supervisors || []).includes(userId))
+        return socket.emit('roomError', 'Maximum 5 supervisors per room.');
+      if (!(r.supervisors || []).includes(userId)) { r.supervisors.push(userId); }
+      // Supervisor outranks admin — remove from admins if present
+      r.admins = (r.admins || []).filter(id => id !== userId);
+    } else {
+      r.supervisors = (r.supervisors || []).filter(id => id !== userId);
+    }
+    broadcastRoom(r);
+    const t = getUser(userId);
+    io.to('room:' + r.id).emit('chatMsg', { sys: true, text: make ? `👑 ${t ? t.displayName : 'User '+userId} is now a supervisor` : `👑 Supervisor removed`, ts: Date.now() });
+    socket.emit('roomDone', { action: make ? 'supervisorAdded' : 'supervisorRemoved', userId });
+  });
+  // Lock/unlock single mic (owner, supervisor, admin)
+  socket.on('roomLockSeat', ({ token, seat, locked }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    if (!canModerate(user, r)) return socket.emit('roomError', 'Moderator only.');
+    seat = Number(seat);
+    if (!(seat >= 0 && seat < r.seats.length)) return;
+    r.lockedSeats = r.lockedSeats || {};
+    if (locked) r.lockedSeats[seat] = true; else delete r.lockedSeats[seat];
+    broadcastRoom(r);
+  });
+  // Lock/unlock ALL mics (owner + supervisor only — NOT admin)
+  socket.on('roomLockAll', ({ token, locked }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    if (!canLockAll(user, r)) return socket.emit('roomError', 'Owner/Supervisor only.');
+    r.allLocked = !!locked;
+    broadcastRoom(r);
+    io.to('room:' + r.id).emit('chatMsg', { sys: true, text: locked ? `🔒 All mics locked by ${user.displayName}` : `🔓 All mics unlocked by ${user.displayName}`, ts: Date.now() });
+  });
+  // Move user to a different mic (owner/supervisor); moved user becomes unmuted
+  socket.on('roomMoveSeat', ({ token, userId, toSeat }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    if (!isRoomHost(user, r) && !isSupervisor(user, r)) return socket.emit('roomError', 'Owner/Supervisor only.');
+    userId = Number(userId); toSeat = Number(toSeat);
+    if (!(toSeat >= 0 && toSeat < r.seats.length)) return socket.emit('roomError', 'Invalid seat.');
+    if (r.seats[toSeat]) return socket.emit('roomError', 'Seat is taken.');
+    let fromSeat = -1;
+    for (let i = 0; i < r.seats.length; i++) if (r.seats[i] && r.seats[i].userId === userId) { fromSeat = i; break; }
+    if (fromSeat < 0) return socket.emit('roomError', 'User is not on a mic.');
+    const s = r.seats[fromSeat]; r.seats[fromSeat] = null;
+    s.muted = false; // moved user becomes unmuted
+    r.seats[toSeat] = s;
+    const cc = conns.get(s.socketId); if (cc) cc.muted = false;
+    broadcastRoom(r);
+    io.to(s.socketId).emit('forceMute', { muted: false });
+  });
+  // Remove user from mic (owner/supervisor/admin)
+  socket.on('roomRemoveFromSeat', ({ token, userId }) => {
+    const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);
+    if (!user || !r) return;
+    if (!canModerate(user, r)) return socket.emit('roomError', 'Moderator only.');
+    userId = Number(userId);
+    for (let i = 0; i < r.seats.length; i++) {
+      if (r.seats[i] && r.seats[i].userId === userId) { r.seats[i] = null; break; }
+    }
+    broadcastRoom(r);
   });
   socket.on('lockRoom', ({ token, locked, password }) => {
     const user = me(token); const c = conns.get(socket.id); const r = rooms.get(c.roomId);

@@ -293,10 +293,21 @@ function joinRoom(id){
   socket.emit('joinRoom',{token,roomId:id,password:pw});
 }
 socket.on('roomError', m=>toast(m));
+socket.on('roomDone', d=>{
+  if(d.action==='kicked') toast('🚫 User kicked');
+  else if(d.action==='unkicked') toast('✅ Kick removed');
+  else if(d.action==='adminAdded') toast('⭐ Admin appointed');
+  else if(d.action==='adminRemoved') toast('⭐ Admin removed');
+  else if(d.action==='supervisorAdded') toast('👑 Supervisor appointed');
+  else if(d.action==='supervisorRemoved') toast('👑 Supervisor removed');
+});
 socket.on('roomJoined', state=>enterRoom(state));
 socket.on('roomState', state=>{ if(currentRoom && state.id===currentRoom.id){ currentRoom=state; renderRoom(); } });
 socket.on('roomLeft', ()=>{ closeAllPeers(); currentRoom=null; mySeat=null; goLobby(); });
-socket.on('kicked', ()=>toast('Kicked by host'));
+socket.on('kicked', d=>{ 
+  if(d && d.by) toast(`🚫 Kicked by ${d.by} (${d.duration})`);
+  else toast('Kicked by host');
+});
 $('btn-leave-room').onclick=()=>socket.emit('leaveRoom');
 
 /* ================= room ================= */
@@ -368,24 +379,64 @@ function openUserSheet(userId){
 socket.on('userCard', d=>{
   if(!d.ok) return;
   const u=d.user;
+  // Moderator controls (only if viewer is owner/supervisor/admin of current room)
+  let modHtml='';
+  const r=currentRoom;
+  if(r && me && u.id!==me.id){
+    const isHost=r.hostId===me.id, isSup=(r.supervisors||[]).includes(me.id), isAdm=(r.admins||[]).includes(me.id);
+    const targetIsHost=r.hostId===u.id, targetIsSup=(r.supervisors||[]).includes(u.id), targetIsAdm=(r.admins||[]).includes(u.id);
+    const canKickUser = isHost || (isSup && !targetIsSup && !targetIsHost) || (isAdm && !targetIsSup && !targetIsAdm && !targetIsHost);
+    if(isHost || isSup || isAdm){
+      modHtml=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <div class="sub" style="margin-bottom:8px">🛡️ Moderator</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+          ${canKickUser?`<button class="btn small danger" id="us-kick">🚫 Kick</button>`:''}
+          ${(isHost||isSup)&&!targetIsHost?`<button class="btn small" id="us-admin">${targetIsAdm?'Remove Admin':'Make Admin'}</button>`:''}
+          ${isHost&&!targetIsHost?`<button class="btn small" id="us-sup">${targetIsSup?'Remove Supervisor':'Make Supervisor'}</button>`:''}
+        </div>
+        <div id="us-kick-durations" class="hidden" style="margin-top:8px">
+          <div class="sub" style="margin-bottom:6px">Kick duration:</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
+            ${[['1min','1m'],['10min','10m'],['1hour','1h'],['1day','1d'],['7days','7d'],['1month','1mo'],['6months','6mo'],['1year','1y']].map(([k,l])=>`<button class="btn small" data-kickdur="${k}">${l}</button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    }
+  }
   $('user-sheet-body').innerHTML=`
     <div style="text-align:center">
       <div class="frame-wrap ${u.frame?'fr-'+u.frame:''}"><div class="avatar big">${esc(u.avatar)}</div></div>
-      <h3 class="${vipClass(u.vip)}">${esc(u.displayName)}</h3>
+      <h3 class="${vipClass(activeVipOf(u))}">${esc(u.displayName)}</h3>
       <div class="sub">ID ${u.id} · @${esc(u.username)}</div>
       <div>${tagsHtml(u.tags)}</div>
-      <div>${vipBadgeHtml(u.vip)}</div>
+      <div>${vipBadgeHtml(activeVipOf(u))}</div>
       <div class="sub">👥 ${u.followers} fans · 🎁 ${u.receivedCount} received</div>
       <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
         <button class="btn small" id="us-follow">${u.isFollowing?t('unfollowBtn'):t('followBtn')}</button>
         <button class="btn small" id="us-gift">🎁 ${t('sendGift').split(' ')[0]||'Gift'}</button>
         <button class="btn small" id="us-msg">✉️ ${t('sendMessage')}</button>
       </div>
+      ${modHtml}
     </div>`;
   $('user-sheet').classList.remove('hidden');
   $('us-follow').onclick=()=>{ socket.emit('follow',{token,userId:u.id}); };
   $('us-gift').onclick=()=>{ $('user-sheet').classList.add('hidden'); giftTargetPreset=u.id; openGiftPanel(); };
   $('us-msg').onclick=()=>{ $('user-sheet').classList.add('hidden'); openThread(u.id, u.displayName); };
+  const uk=$('us-kick'); if(uk) uk.onclick=()=>{ $('us-kick-durations').classList.toggle('hidden'); };
+  document.querySelectorAll('[data-kickdur]').forEach(b=>b.onclick=()=>{
+    socket.emit('roomKick',{token,userId:u.id,duration:b.dataset.kickdur});
+    $('user-sheet').classList.add('hidden');
+  });
+  const ua=$('us-admin'); if(ua) ua.onclick=()=>{
+    const isAdm=(currentRoom.admins||[]).includes(u.id);
+    socket.emit('roomSetAdmin',{token,userId:u.id,make:!isAdm});
+    $('user-sheet').classList.add('hidden');
+  };
+  const us=$('us-sup'); if(us) us.onclick=()=>{
+    const isSup=(currentRoom.supervisors||[]).includes(u.id);
+    socket.emit('roomSetSupervisor',{token,userId:u.id,make:!isSup});
+    $('user-sheet').classList.add('hidden');
+  };
 });
 socket.on('followResult', d=>{ if(d.ok){ toast(d.following?'Followed ✅':'Unfollowed'); openUserSheet(d.user.id); } });
 $('user-sheet-close').onclick=()=>$('user-sheet').classList.add('hidden');
