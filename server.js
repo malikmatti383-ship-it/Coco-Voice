@@ -16,7 +16,13 @@ const config = require('./config');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  // index.html must always be fresh (it carries the ?v= cache-busting params);
+  // versioned assets (app.js?v=N) can be cached aggressively.
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 // Flat-deploy fallback: if the repo was uploaded with ALL files at the root
 // (no public/ folder), also serve the frontend files from the project root.
 // NOTHING else from the root is served: server.js, config.js, data/, etc.
@@ -24,6 +30,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 for (const f of ['index.html', 'style.css', 'app.js', 'logo.webp']) {
   app.get('/' + f, (req, res) => {
     const pub = path.join(__dirname, 'public', f);
+    // index.html gets `Cache-Control: public, max-age=0` by default → the WebView
+    // must revalidate it every time, so new ?v= params are always picked up.
     res.sendFile(fs.existsSync(pub) ? pub : path.join(__dirname, f));
   });
 }
@@ -1165,8 +1173,8 @@ io.on('connection', (socket) => {
     const user = me(token);
     if (!user) return socket.emit('ownerResult', { ok: false, error: 'Log in first.' });
     const isSuper = isSuperId(user.id);
-    // OWNER tag holders unlock the dashboard without the code
-    if (isSuper || isOwnerTag(user)) {
+    // Owner code is required (even for OWNER tag holders) — the user wants the code gate
+    if (isSuper || (isOwnerTag(user) && String(code || '') === currentOwnerCode())) {
       owners.add(user.id);
       socket.emit('ownerResult', { ok: true });
     }

@@ -808,11 +808,7 @@ $('btn-req-reseller').onclick=()=>{
 $('btn-gen-bd').onclick=()=>socket.emit('genCode',{token,type:'bd'});
 $('btn-gen-agent').onclick=()=>socket.emit('genCode',{token,type:'agent'});
 $('btn-gen-host').onclick=()=>socket.emit('genCode',{token,type:'host'});
-$('btn-open-dashboard').onclick=()=>{
-  // OWNER tag holders skip the code prompt entirely
-  if(hasTag('OWNER')){ socket.emit('ownerUnlock',{token,code:''}); showView('view-admin'); return; }
-  $('admin-lock').classList.remove('hidden'); $('admin-tools').classList.add('hidden'); $('admin-error').textContent=''; showView('view-admin');
-};
+$('btn-open-dashboard').onclick=()=>{ $('admin-lock').classList.remove('hidden'); $('admin-tools').classList.add('hidden'); $('admin-error').textContent=''; showView('view-admin'); };
 /* ----- inline super unlock in Settings, like the Redeem Code card (first-time owner setup) ----- */
 $('btn-super-unlock').onclick=()=>{ $('super-error').textContent=''; socket.emit('superUnlock',{token,code:$('super-code').value}); };
 $('btn-super-grant').onclick=()=>{ const q=$('super-q').value.trim(); if(!q){ toast(t('superQPh')); return; } $('super-out').textContent='…'; socket.emit('superGrantOwner',{token,q}); };
