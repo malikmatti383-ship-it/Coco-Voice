@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 </head>
 <body>
 <div id="app">
@@ -190,6 +190,44 @@
     </nav>
   </section>
 
+  <!-- ============ HOST CENTER ============ -->
+  <section id="view-host" class="view">
+    <header class="topbar">
+      <button id="btn-host-back" class="icon-btn">⬅</button>
+      <div class="room-title">🎙️ Host Center</div>
+    </header>
+    <div style="background:linear-gradient(135deg,#FF9A56,#FF7B35);padding:18px;color:#fff">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span id="host-avatar" class="avatar" style="font-size:40px">🙂</span>
+        <div><div id="host-name" style="font-weight:800;font-size:17px">—</div><div id="host-id" class="sub" style="color:#fff">ID: —</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
+        <div style="background:rgba(255,255,255,.2);border-radius:14px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:800" id="host-today">0</div><div style="font-size:11px">Today's 🫘</div>
+        </div>
+        <div style="background:rgba(255,255,255,.2);border-radius:14px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:800" id="host-total">0</div><div style="font-size:11px">Total 🫘</div>
+        </div>
+        <div style="background:rgba(255,255,255,.2);border-radius:14px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:800" id="host-hours">0h</div><div style="font-size:11px">Online</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px">
+      <h4>📋 Daily Tasks</h4>
+      <div id="host-tasks"></div>
+      <h4 style="margin-top:16px">📢 Official Announcements</h4>
+      <div id="host-announcements"></div>
+    </div>
+    <nav class="bottomnav">
+      <button id="nav6-lobby" class="bnav">🏠<span data-i18n="home">Home</span></button>
+      <button id="nav6-store" class="bnav">🏪<span data-i18n="store">Store</span></button>
+      <button id="nav6-games" class="bnav">🎮<span>Games</span></button>
+      <button id="nav6-inbox" class="bnav">💌<span data-i18n="inbox">Inbox</span></button>
+      <button id="nav6-me" class="bnav">👤<span data-i18n="me">Me</span></button>
+    </nav>
+  </section>
+
   <!-- ============ GAME CENTER ============ -->
   <section id="view-games" class="view">
     <header class="topbar">
@@ -279,6 +317,7 @@
       </div>
       <div class="profile-menu">
         <div class="profile-menu-item" id="pm-store"><span class="pm-icon">🏪</span><span data-i18n="store">Store</span><span class="pm-arrow">›</span></div>
+        <div class="profile-menu-item" id="pm-host"><span class="pm-icon">🎙️</span><span>Host Center</span><span class="pm-arrow">›</span></div>
         <div class="profile-menu-item" id="pm-dress"><span class="pm-icon">👗</span><span data-i18n="myDress">My dress</span><span class="pm-arrow">›</span></div>
         <div class="profile-menu-item" id="pm-level"><span class="pm-icon">⭐</span><span data-i18n="level">Level</span><span class="pm-arrow" id="profile-level-short">›</span></div>
         <div class="profile-menu-item" id="pm-settings"><span class="pm-icon">⚙️</span><span data-i18n="settings">Settings</span><span class="pm-arrow">›</span></div>
@@ -385,6 +424,7 @@
         <button class="ltab dtab" data-dt="users" data-i18n="users">👥 Users</button>
         <button class="ltab dtab" data-dt="targets" data-i18n="targets">🎯 Targets</button>
         <button class="ltab dtab" data-dt="agency" data-i18n="agency">🏢 Agency</button>
+        <button class="ltab dtab" data-dt="announce">📢 Announce</button>
         <button class="ltab dtab" data-dt="super" data-i18n="superOwner">👑 Super</button>
       </div>
       <div id="dash-body"></div>
@@ -410,6 +450,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=27"></script>
+<script src="app.js?v=28"></script>
 </body>
 </html>

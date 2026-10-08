@@ -1865,6 +1865,21 @@ io.on('connection', (socket) => {
     socket.emit('gameResult', { ok: true, game: 'luxury', phase: 'clear', bets: {}, totalBet: 0, beans: user.beans, cars: LUXURY_CARS });
   });
 
+  /* ----- Host Center: announcements ----- */
+  socket.on('getAnnouncements', ({ token }) => {
+    const user = me(token); if (!user) return;
+    const anns = (settings.announcements || []).slice(-20).reverse();
+    socket.emit('announcements', anns);
+  });
+  socket.on('postAnnouncement', ({ token, title, text }) => {
+    const user = me(token); if (!user || user.role !== 'OWNER') return;
+    settings.announcements = settings.announcements || [];
+    settings.announcements.push({ title: String(title).slice(0, 100), text: String(text).slice(0, 500), ts: Date.now() });
+    if (settings.announcements.length > 50) settings.announcements = settings.announcements.slice(-50);
+    saveSettings();
+    socket.emit('announcementPosted');
+  });
+
   /* ----- WebRTC signaling relay ----- */
   socket.on('signal', ({ token, to, data }) => {
     const user = me(token); if (!user) return;

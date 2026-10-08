@@ -232,6 +232,42 @@ function goStore(){ renderStoreChips(); renderStore(); showView('view-store'); }
 function goInbox(){ socket.emit('listInbox',{token}); showView('view-inbox'); }
 function goMe(){ viewingUser=null; renderProfile(); showView('view-profile'); }
 function goGames(){ renderGameCenter(); $('games-coins').textContent=fmt(me?me.beans:0); $('games-win-golds').textContent=fmt((me&&me.winGolds)||0); showView('view-games'); }
+function goHost(){
+  $('host-avatar').textContent = me?me.avatar||'🙂':'🙂';
+  $('host-name').textContent = me?me.displayName:'—';
+  $('host-id').textContent = 'ID: '+(me?me.cocoId:'—');
+  $('host-today').textContent = fmt((me&&me.todayBeans)||0);
+  $('host-total').textContent = fmt((me&&me.charmXp)||0);
+  $('host-hours').textContent = ((me&&me.onlineMins)||0) >= 60 ? Math.floor(((me&&me.onlineMins)||0)/60)+'h' : ((me&&me.onlineMins)||0)+'m';
+  // Daily tasks
+  const tasks = [
+    { icon: '🎁', name: 'Send 10 gifts', progress: Math.min((me&&me.todayGifts)||0, 10), total: 10, reward: '50 🫘' },
+    { icon: '⏰', name: 'Stay online 30 min', progress: Math.min((me&&me.onlineMins)||0, 30), total: 30, reward: '30 🫘' },
+    { icon: '🎮', name: 'Play 5 games', progress: Math.min((me&&me.todayGames)||0, 5), total: 5, reward: '20 🫘' },
+  ];
+  $('host-tasks').innerHTML = tasks.map(t => `
+    <div style="background:var(--card);border-radius:14px;padding:12px;margin:8px 0;display:flex;align-items:center;gap:10px">
+      <span style="font-size:28px">${t.icon}</span>
+      <div style="flex:1"><b>${t.name}</b>
+        <div style="background:var(--line);border-radius:999px;height:8px;margin-top:6px"><div style="background:var(--gold);height:8px;border-radius:999px;width:${Math.round(t.progress/t.total*100)}%"></div></div>
+      </div>
+      <div style="text-align:right"><div class="sub">${t.progress}/${t.total}</div><div style="font-size:12px;color:var(--gold-d);font-weight:700">${t.reward}</div></div>
+    </div>`).join('');
+  // Official announcements (from server)
+  socket.emit('getAnnouncements', { token });
+  showView('view-host');
+}
+$('pm-host').onclick=goHost;
+$('btn-host-back').onclick=goLobby;
+for (const [id,fn] of [['nav6-lobby',goLobby],['nav6-store',goStore],['nav6-games',goGames],['nav6-inbox',goInbox],['nav6-me',goMe]]) { const el=$(id); if(el) el.onclick=fn; }
+socket.on('announcements', list => {
+  $('host-announcements').innerHTML = (list||[]).map(a => `
+    <div style="background:var(--card);border-radius:14px;padding:12px;margin:8px 0">
+      <div style="font-weight:800;color:var(--gold-d)">📢 ${esc(a.title)}</div>
+      <div class="sub" style="margin-top:4px">${esc(a.text)}</div>
+      <div class="sub" style="margin-top:4px;font-size:10px">${new Date(a.ts).toLocaleDateString()}</div>
+    </div>`).join('') || '<p class="sub">No announcements yet.</p>';
+});
 /* Game Center — grid of game cards (Ayome-style) */
 const GAME_CARDS = [
   { id: 'chicken', name: 'Chicken Rush', emoji: '🐔', color: 'linear-gradient(135deg,#66bb6a,#43a047)', playable: true },
@@ -1149,8 +1185,24 @@ function renderDash(){
   else if(dashTab==='users') renderDashUsers(body);
   else if(dashTab==='targets') renderDashTargets(body);
   else if(dashTab==='agency') renderDashAgency(body);
+  else if(dashTab==='announce') renderDashAnnounce(body);
   else if(dashTab==='super') renderDashSuper(body);
 }
+function renderDashAnnounce(body){
+  body.innerHTML = `
+    <div class="admin-card">
+      <h4>📢 Post Announcement</h4>
+      <input id="ann-title" placeholder="Title" style="width:100%;margin:6px 0">
+      <textarea id="ann-text" placeholder="Message..." rows="4" style="width:100%;margin:6px 0"></textarea>
+      <button id="btn-ann-post" class="btn primary" style="width:100%">📢 Post to Host Center</button>
+    </div>`;
+  $('btn-ann-post').onclick = () => {
+    const title = $('ann-title').value.trim(), text = $('ann-text').value.trim();
+    if(!title || !text){ toast('Title + message required'); return; }
+    socket.emit('postAnnouncement', { token, title, text });
+  };
+}
+socket.on('announcementPosted', () => { toast('📢 Announcement posted!'); $('ann-title').value=''; $('ann-text').value=''; });
 function renderDashUsers(body){
   body.innerHTML=`<div class="lobby-actions"><input id="du-q" placeholder="${t('searchUserPh')}">
     <button class="btn primary" id="du-search">${t('search')}</button></div><div id="du-list"></div>
