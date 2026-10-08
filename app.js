@@ -231,10 +231,52 @@ function goLobby(){ showView('view-lobby'); socket.emit('listRooms'); }
 function goStore(){ renderStoreChips(); renderStore(); showView('view-store'); }
 function goInbox(){ socket.emit('listInbox',{token}); showView('view-inbox'); }
 function goMe(){ viewingUser=null; renderProfile(); showView('view-profile'); }
-for (const [id,fn] of [['nav-lobby',goLobby],['nav2-lobby',goLobby],['nav3-lobby',goLobby],['nav4-lobby',goLobby],
-  ['nav-store',goStore],['nav2-store',goStore],['nav3-store',goStore],['nav4-store',goStore],
-  ['nav-inbox',goInbox],['nav2-inbox',goInbox],['nav3-inbox',goInbox],['nav4-inbox',goInbox],
-  ['nav-me',goMe],['nav2-me',goMe],['nav3-me',goMe],['nav4-me',goMe]]) $(id).onclick=fn;
+function goGames(){ renderGameCenter(); $('games-coins').textContent=fmt(me?me.beans:0); $('games-win-golds').textContent=fmt((me&&me.winGolds)||0); showView('view-games'); }
+/* Game Center — grid of game cards (Ayome-style) */
+const GAME_CARDS = [
+  { id: 'chicken', name: 'Chicken Rush', emoji: '🐔', color: 'linear-gradient(135deg,#66bb6a,#43a047)', playable: true },
+  { id: 'slots777', name: '777 Slots', emoji: '🎰', color: 'linear-gradient(135deg,#ab47bc,#8e24aa)', playable: true },
+  { id: 'dice', name: 'Dice Roll', emoji: '🎲', color: 'linear-gradient(135deg,#42a5f5,#1e88e5)', playable: true },
+  { id: 'mora', name: 'Mora', emoji: '✊', color: 'linear-gradient(135deg,#ffa726,#fb8c00)', playable: true },
+  { id: 'wheel', name: 'Lucky Wheel', emoji: '🎡', color: 'linear-gradient(135deg,#ec407a,#d81b60)', playable: true },
+  { id: 'luxurycar', name: 'Luxury Car', emoji: '🏎️', color: 'linear-gradient(135deg,#7e57c2,#5e35b1)', playable: false },
+  { id: 'greedy', name: 'Greedy Pro', emoji: '🐘', color: 'linear-gradient(135deg,#26a69a,#00897b)', playable: false },
+  { id: 'football', name: 'Bounty Football', emoji: '⚽', color: 'linear-gradient(135deg,#5c6bc0,#3949ab)', playable: false },
+  { id: 'teenpatti', name: 'TeenPatti 2', emoji: '🃏', color: 'linear-gradient(135deg,#ef5350,#e53935)', playable: false },
+  { id: 'dragon', name: 'Dragon Tiger', emoji: '🐉', color: 'linear-gradient(135deg,#ff7043,#f4511e)', playable: false },
+  { id: 'baccarat', name: 'Baccarat', emoji: '🎴', color: 'linear-gradient(135deg,#26c6da,#00acc1)', playable: false },
+  { id: 'fishing', name: 'Fishing Joy', emoji: '🎣', color: 'linear-gradient(135deg,#9ccc65,#7cb342)', playable: false },
+];
+function renderGameCenter(){
+  const grid = $('games-grid');
+  grid.innerHTML = GAME_CARDS.map(g => `
+    <div class="game-card" data-game="${g.id}" style="background:${g.color};border-radius:18px;padding:16px 8px;text-align:center;cursor:pointer;box-shadow:var(--shadow);position:relative;overflow:hidden">
+      <div style="font-size:44px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.2))">${g.emoji}</div>
+      <div style="color:#fff;font-weight:800;font-size:13px;margin-top:6px">${g.name}</div>
+      ${g.playable ? '<div style="position:absolute;top:6px;right:6px;background:#4caf50;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px">PLAY</div>' : '<div style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.3);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px">SOON</div>'}
+    </div>`).join('');
+  grid.querySelectorAll('.game-card').forEach(card => card.onclick = () => {
+    const g = GAME_CARDS.find(x => x.id === card.dataset.game);
+    if (g.playable) {
+      // Open the in-room games panel (needs a room) or show toast
+      toast(`${g.emoji} ${g.name} — join a room to play!`);
+      goLobby();
+    } else {
+      toast(`${g.emoji} ${g.name} coming soon!`);
+    }
+  });
+}
+document.querySelectorAll('.games-tab').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.games-tab').forEach(x => x.classList.toggle('active', x === b));
+  if (b.dataset.gt === 'room') toast('🏠 Game rooms coming soon!');
+});
+for (const [id,fn] of [['nav-lobby',goLobby],['nav2-lobby',goLobby],['nav3-lobby',goLobby],['nav4-lobby',goLobby],['nav5-lobby',goLobby],
+  ['nav-store',goStore],['nav2-store',goStore],['nav3-store',goStore],['nav4-store',goStore],['nav5-store',goStore],
+  ['nav-inbox',goInbox],['nav2-inbox',goInbox],['nav3-inbox',goInbox],['nav4-inbox',goInbox],['nav5-inbox',goInbox],
+  ['nav-me',goMe],['nav2-me',goMe],['nav3-me',goMe],['nav4-me',goMe],['nav5-me',goMe],
+  ['nav5-games',goGames]]) { const el=$(id); if(el) el.onclick=fn; }
+$('btn-open-games').onclick=goGames;
+$('btn-games-back').onclick=goLobby;
 $('btn-store-back').onclick=goLobby; $('btn-inbox-back').onclick=goLobby; $('btn-profile-back').onclick=goLobby;
 $('btn-settings').onclick=()=>{ renderSettings(); showView('view-settings'); };
 $('btn-settings-back').onclick=goMe;

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 <div id="app">
@@ -45,8 +45,9 @@
       <button id="lobby-tab-agency" class="ltab" data-i18n="agency">Agency</button>
       <input id="room-search" data-i18n-ph="searchRooms" placeholder="🔍 Search rooms...">
     </div>
-    <div class="lobby-actions">
-      <button id="btn-create-room" class="btn primary" data-i18n="createRoom">+ Create Room</button>
+    <div class="lobby-actions" style="display:flex;gap:8px">
+      <button id="btn-create-room" class="btn primary" data-i18n="createRoom" style="flex:1">+ Create Room</button>
+      <button id="btn-open-games" class="btn gold" style="flex:1">🎮 Games</button>
     </div>
     <div id="room-list" class="room-list"></div>
     <nav class="bottomnav">
@@ -159,6 +160,36 @@
       <button id="nav2-store" class="bnav active">🏪<span data-i18n="store">Store</span></button>
       <button id="nav2-inbox" class="bnav">💌<span data-i18n="inbox">Inbox</span></button>
       <button id="nav2-me" class="bnav">👤<span data-i18n="me">Me</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ GAME CENTER ============ -->
+  <section id="view-games" class="view">
+    <header class="topbar">
+      <button id="btn-games-back" class="icon-btn">⬅</button>
+      <div class="room-title">🎮 Game Center</div>
+      <div class="coins-chip bean">🫘 <span id="games-coins">0</span></div>
+    </header>
+    <div style="background:linear-gradient(135deg,#FF9A56,#FF7B35);padding:14px;color:#fff;text-align:center">
+      <div style="font-weight:800;font-size:16px">Play daily, claim rich rewards</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;align-items:center">
+        <span style="background:rgba(255,255,255,.25);border-radius:12px;padding:6px 12px;font-weight:800">🏆 <span id="games-win-golds">0</span> Win Golds</span>
+      </div>
+      <div style="display:flex;gap:6px;justify-content:center;margin-top:8px">
+        <span class="sub" style="color:#fff">🎁 500</span><span class="sub" style="color:#fff">🎁 50K</span><span class="sub" style="color:#fff">🎁 1M</span><span class="sub" style="color:#fff">🎁 10M</span>
+      </div>
+    </div>
+    <div class="lobby-tabs">
+      <button class="ltab games-tab active" data-gt="center">🎮 Game center</button>
+      <button class="ltab games-tab" data-gt="room">🏠 Game room</button>
+    </div>
+    <div id="games-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px"></div>
+    <nav class="bottomnav">
+      <button id="nav5-lobby" class="bnav">🏠<span data-i18n="home">Home</span></button>
+      <button id="nav5-store" class="bnav">🏪<span data-i18n="store">Store</span></button>
+      <button id="nav5-games" class="bnav active">🎮<span>Games</span></button>
+      <button id="nav5-inbox" class="bnav">💌<span data-i18n="inbox">Inbox</span></button>
+      <button id="nav5-me" class="bnav">👤<span data-i18n="me">Me</span></button>
     </nav>
   </section>
 
@@ -352,6 +383,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>
