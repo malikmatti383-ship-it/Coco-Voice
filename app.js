@@ -52,7 +52,7 @@ en:{
   makeOwnerT:'Make yourself Owner', makeOwnerD:'Enter your CoCo ID or username, then tap the button.',
   ownerGranted:'✅ You are now the Owner! Go back to Settings → Open Owner Dashboard.',
   makeOwner:'Make Owner', removeOwner:'Remove Owner', changeOwnerCode:'Change owner code',
-  resetSuperT:'🔑 Reset super code', resetSuperD:'Forgot the code? As Owner you can set a new one right here — no old code needed.', resetSuperB:'Set new super code', superResetOk:'✅ Super code updated! Use the new code below to unlock.',
+  resetSuperT:'🔑 Reset super code', resetSuperD:'Forgot the code? As Owner you can set a new one — a 6-digit verification code will be sent to your Gmail first.', resetSuperB:'Send verification code', superResetOk:'✅ Super code updated! Use the new code below to unlock.', otpSentT:'📧 A 6-digit code was sent to your Gmail. Enter it below within 10 minutes.', otpVerifyB:'Verify & reset',
   changeSuperKey:'Change Super Key', newCodePh:'New owner code (4-32 chars)', newSuperKeyPh:'New super key (4-32 chars)',
   listOwners:'List owners', sendCodeEmail:'📧 Send code to Gmail', verifyCodePh:'6-digit code from Gmail',
   verifyAndChange:'Verify & Change', sendingCode:'Sending code to Gmail…',
@@ -117,7 +117,7 @@ ur:{
   makeOwnerT:'خود کو اوونر بنائیں', makeOwnerD:'اپنی کوکو آئی ڈی یا یوزرنیم لکھیں، پھر بٹن دبائیں۔',
   ownerGranted:'✅ اب آپ اوونر ہیں! واپس سیٹنگز میں جا کر اوونر ڈیش بورڈ کھولیں۔',
   makeOwner:'اوونر بنائیں', removeOwner:'اوونر ہٹائیں', changeOwnerCode:'اوونر کوڈ بدلیں',
-  resetSuperT:'🔑 سپر کوڈ ری سیٹ کریں', resetSuperD:'کوڈ بھول گئے؟ اوونر کے طور پر یہیں نیا کوڈ لگا لیں — پرانے کوڈ کی ضرورت نہیں۔', resetSuperB:'نیا سپر کوڈ لگائیں', superResetOk:'✅ سپر کوڈ بدل گیا! انلاک کے لیے نیچے نیا کوڈ استعمال کریں۔',
+  resetSuperT:'🔑 سپر کوڈ ری سیٹ کریں', resetSuperD:'کوڈ بھول گئے؟ اوونر کے طور پر نیا کوڈ لگا سکتے ہیں — پہلے آپ کے Gmail پر 6 ہندسوں کا تصدیقی کوڈ آئے گا۔', resetSuperB:'تصدیقی کوڈ بھیجیں', superResetOk:'✅ سپر کوڈ بدل گیا! انلاک کے لیے نیچے نیا کوڈ استعمال کریں۔', otpSentT:'📧 آپ کے Gmail پر 6 ہندسوں کا کوڈ بھیجا گیا۔ 10 منٹ میں نیچے درج کریں۔', otpVerifyB:'تصدیق کریں اور ری سیٹ کریں',
   changeSuperKey:'سپر کی بدلیں', newCodePh:'نیا اوونر کوڈ (4-32 حروف)', newSuperKeyPh:'نیا سپر کی (4-32 حروف)',
   listOwners:'اوونرز کی فہرست', sendCodeEmail:'📧 جی میل پر کوڈ بھیجیں', verifyCodePh:'جی میل سے 6 ہندسوں کا کوڈ',
   verifyAndChange:'تصدیق کریں اور بدلیں', sendingCode:'جی میل پر کوڈ بھیجا جا رہا ہے…',
@@ -1024,6 +1024,11 @@ function renderDashSuper(body){
       <p class="sub">${t('resetSuperD')}</p>
       <input id="d-super-reset-new" type="password" placeholder="${t('newSuperKeyPh')}" maxlength="32">
       <button class="btn primary" id="d-btn-sreset">${t('resetSuperB')}</button>
+      <div id="d-super-otp-wrap" class="hidden">
+        <p class="sub">${t('otpSentT')}</p>
+        <input id="d-super-otp" type="text" inputmode="numeric" placeholder="6-digit code" maxlength="6">
+        <button class="btn primary" id="d-btn-sreset-verify">${t('otpVerifyB')}</button>
+      </div>
       <p class="sub" id="d-super-reset-out"></p></div>`:''}
     <div id="d-super-tools" class="hidden">
       <input id="d-super-q" placeholder="${t('superQPh')}">
@@ -1060,8 +1065,12 @@ function renderDashSuper(body){
   $('d-btn-sverify-s').onclick=()=>con('super'); $('d-btn-sverify-o').onclick=()=>con('owner');
   const rsBtn=$('d-btn-sreset');
   if(rsBtn) rsBtn.onclick=()=>{ const v=$('d-super-reset-new').value.trim();
-    if(v.length<4){ toast('4-32'); return; }
+    if(v.length<4||v.length>32){ toast('4-32'); return; }
     $('d-super-reset-out').textContent='...'; socket.emit('superResetCode',{token,newCode:v}); };
+  const rsVerifyBtn=$('d-btn-sreset-verify');
+  if(rsVerifyBtn) rsVerifyBtn.onclick=()=>{ const c=$('d-super-otp').value.trim();
+    if(!c){ toast('Enter the 6-digit code'); return; }
+    $('d-super-reset-out').textContent='...'; socket.emit('superResetVerify',{token,code:c}); };
 }
 socket.on('superResult', d=>{
   const err=$('d-super-error'), ks=$('d-super-key-status');
@@ -1075,10 +1084,13 @@ socket.on('superResult', d=>{
     toast('👑'); socket.emit('superListOwners',{token}); return; }
   if(d.action==='grantOwner'){ toast('👑'); if(sout) sout.textContent=t('ownerGranted'); const ss=$('set-super'); if(ss) ss.classList.add('hidden'); renderSettings(); socket.emit('superListOwners',{token}); }
   else if(d.action==='revokeOwner'){ toast('👑'); socket.emit('superListOwners',{token}); }
-  else if(d.action==='keyCodeSent'){ toast(t('codeSent')); if(ks) ks.textContent=t('codeSent'); }
+  else if(d.action==='keyCodeSent'){ toast(t('codeSent')); if(ks) ks.textContent=t('codeSent');
+    if(d.which==='superReset'){ const w=$('d-super-otp-wrap'); if(w) w.classList.remove('hidden');
+      const o=$('d-super-reset-out'); if(o) o.textContent=t('otpSentT'); } }
   else if(d.action==='keyChanged'){ toast(t('keyChangedOk')); if(ks) ks.textContent=t('keyChangedOk'); }
   else if(d.action==='superReset'){ toast('🔑 ✅'); const o=$('d-super-reset-out');
-    if(o) o.textContent=t('superResetOk'); const ri=$('d-super-reset-new'); if(ri) ri.value=''; }
+    if(o) o.textContent=t('superResetOk'); const ri=$('d-super-reset-new'); if(ri) ri.value='';
+    const w=$('d-super-otp-wrap'); if(w) w.classList.add('hidden'); const oi=$('d-super-otp'); if(oi) oi.value=''; }
   else if(d.action==='listOwners'){
     const out=$('d-super-out');
     if(out) out.innerHTML=d.users.length?'<b>Owners:</b><br>'+d.users.map(u=>`👑 ${esc(u.displayName)} <span class="sub">ID ${u.id}</span>`).join('<br>'):'<span class="sub">—</span>';

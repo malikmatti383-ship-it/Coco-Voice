@@ -411,9 +411,14 @@ io.on('connection', (socket) => {
       coupleWith: null, receivedGifts: {}, sentGifts: 0,
       followers: [], following: [], blocked: false,
     };
-    // Bootstrap: the first registered user automatically becomes OWNER while no OWNER exists.
-    // (Deploy ke baad sab se pehle register karne wala khud-ba-khud Owner ban jata hai.)
-    if (!users.some(u => hasTag(u, 'OWNER'))) user.tags.push('OWNER');
+    // Bootstrap: the designated OWNER_USERNAME always gets OWNER (survives data wipes).
+    // Otherwise, the first registered user becomes OWNER only if no users exist at all.
+    const designatedOwner = (process.env.OWNER_USERNAME || config.OWNER_USERNAME || '').trim().toLowerCase();
+    if (designatedOwner && user.username.toLowerCase() === designatedOwner) {
+      if (!hasTag(user, 'OWNER')) user.tags.push('OWNER');
+    } else if (users.length === 0 && !users.some(u => hasTag(u, 'OWNER'))) {
+      user.tags.push('OWNER');
+    }
     users.push(user); saveUsers();
     const tok = makeToken(); sessions.set(tok, user.id);
     conns.get(socket.id).userId = user.id;
@@ -426,6 +431,11 @@ io.on('connection', (socket) => {
     if (!user || !bcrypt.compareSync(String(password || ''), user.passHash))
       return socket.emit('auth', { ok: false, error: 'Wrong username or password.' });
     if (user.blocked) return socket.emit('auth', { ok: false, error: 'This account is blocked. Contact support.' });
+    // Designated owner always keeps OWNER tag on login (survives data wipes).
+    const designatedOwner = (process.env.OWNER_USERNAME || config.OWNER_USERNAME || '').trim().toLowerCase();
+    if (designatedOwner && user.username.toLowerCase() === designatedOwner && !hasTag(user, 'OWNER')) {
+      user.tags.push('OWNER'); saveUsers();
+    }
     if (sweepExpiry(user)) saveUsers();
     const tok = makeToken(); sessions.set(tok, user.id);
     conns.get(socket.id).userId = user.id;
@@ -1225,16 +1235,50 @@ io.on('connection', (socket) => {
     if (String(code || '') === currentSuperCode()) { supers.add(user.id); socket.emit('superResult', { ok: true }); }
     else socket.emit('superResult', { ok: false, error: 'Wrong super code.' });
   });
-  // Forgot the super code? Any OWNER-tagged user can set a new one — no old code needed.
-  socket.on('superResetCode', ({ token, newCode }) => {
+  // Forgot the super code? Any OWNER-tagged user can request a reset — but it is
+  // NOT instant: a 6-digit verification code is emailed to SUPER_EMAIL first,
+  // and the reset only completes after the owner enters that code.
+  socket.on('superResetCode', async ({ token, newCode }) => {
     const user = me(token);
     if (!user || !isOwnerTag(user))
       return socket.emit('superResult', { ok: false, error: 'Owner access required.' });
     newCode = String(newCode || '').trim();
     if (newCode.length < 4 || newCode.length > 32)
       return socket.emit('superResult', { ok: false, error: 'Code must be 4-32 characters.' });
-    settings.superCode = newCode;
+    if (!emailConfigured())
+      return socket.emit('superResult', { ok: false, error: 'Email not configured — set SUPER_EMAIL / SMTP_USER / SMTP_PASS as Render env vars first.' });
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    pendingKeyChanges.set(user.id, { which: 'superReset', newValue: newCode, code, expiresAt: Date.now() + KEY_CHANGE_TTL_MS, attempts: 0 });
+    try {
+      await sendVerificationEmail('super', code);
+      socket.emit('superResult', { ok: true, action: 'keyCodeSent', which: 'superReset' });
+    } catch (e) {
+      pendingKeyChanges.delete(user.id);
+      socket.emit('superResult', { ok: false, error: 'Email failed to send — check SMTP settings.' });
+    }
+  });
+  socket.on('superResetVerify', ({ token, code }) => {
+    const user = me(token);
+    if (!user || !isOwnerTag(user))
+      return socket.emit('superResult', { ok: false, error: 'Owner access required.' });
+    const p = pendingKeyChanges.get(user.id);
+    if (!p || p.which !== 'superReset')
+      return socket.emit('superResult', { ok: false, error: 'No pending reset request.' });
+    if (Date.now() > p.expiresAt) {
+      pendingKeyChanges.delete(user.id);
+      return socket.emit('superResult', { ok: false, error: 'Code expired — request a new one.' });
+    }
+    if (String(code || '').trim() !== p.code) {
+      p.attempts++;
+      if (p.attempts >= 5) {
+        pendingKeyChanges.delete(user.id);
+        return socket.emit('superResult', { ok: false, error: 'Too many wrong attempts — request a new code.' });
+      }
+      return socket.emit('superResult', { ok: false, error: `Wrong code (${5 - p.attempts} tries left).` });
+    }
+    settings.superCode = p.newValue;
     saveSettings();
+    pendingKeyChanges.delete(user.id);
     socket.emit('superResult', { ok: true, action: 'superReset' });
   });
   const requireSuper = (user) => user && isSuperId(user.id);
