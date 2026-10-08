@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 </head>
 <body>
 <div id="app">
@@ -87,6 +87,20 @@
       <label><span data-i18n="to">To:</span> <select id="gift-target"></select></label>
       <div id="gift-tabs" class="gtabs"></div>
       <div id="gift-catalog" class="gift-catalog"></div>
+      <div id="gift-selected-bar" class="hidden" style="background:var(--card2);border:2px solid var(--gold);border-radius:16px;padding:12px;margin:10px 0">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="gift-selected-emoji" style="font-size:36px"></span>
+          <div style="flex:1"><b id="gift-selected-name"></b><div class="sub" id="gift-selected-price"></div></div>
+        </div>
+        <div style="display:flex;gap:6px;margin:10px 0;justify-content:center" id="gift-qty-row">
+          <button class="btn small gift-qty" data-qty="1">x1</button>
+          <button class="btn small gift-qty" data-qty="10">x10</button>
+          <button class="btn small gift-qty" data-qty="30">x30</button>
+          <button class="btn small gift-qty" data-qty="99">x99</button>
+        </div>
+        <button id="btn-gift-send" class="btn gold" style="width:100%;font-size:17px;font-weight:800">🎁 SEND</button>
+        <div class="sub" style="text-align:center;margin-top:6px">Balance: <b id="gift-balance">0</b> 🪙</div>
+      </div>
       <button id="gift-close" class="btn" data-i18n="close">Close</button>
     </div>
     <!-- games panel -->
@@ -396,6 +410,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=26"></script>
+<script src="app.js?v=27"></script>
 </body>
 </html>

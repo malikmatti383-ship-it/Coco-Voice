@@ -533,9 +533,13 @@ socket.on('entryEffect', d=>{
 });
 
 /* gifts */
+let selectedGift = null, selectedQty = 1;
 function openGiftPanel(){
+  selectedGift = null; selectedQty = 1;
+  $('gift-selected-bar').classList.add('hidden');
   renderGiftTabs();
   renderGiftCatalog();
+  $('gift-balance').textContent = fmt(me?me.coins:0);
   $('gift-panel').classList.remove('hidden');
 }
 $('btn-room-gifts').onclick=openGiftPanel;
@@ -550,16 +554,53 @@ function renderGiftTabs(){
 function renderGiftCatalog(){
   const list=CATALOG.gifts.filter(g=>g.cat===giftCat);
   $('gift-catalog').innerHTML=list.map(g=>`
-    <div class="gift" data-id="${g.id}">
-      <div class="g-emoji">${g.emoji}</div><div>${esc(g.name)}</div>
+    <div class="gift ${selectedGift===g.id?'selected':''}" data-id="${g.id}">
+      <div class="g-emoji">${g.emoji}</div><div class="g-name">${esc(g.name)}</div>
       <div class="g-price ${g.currency==='diamond'?'dia':''}">${g.currency==='diamond'?'💎':'🪙'} ${fmt(g.price)}${g.lucky?' 🍀':''}</div>
     </div>`).join('') || '<p class="sub">—</p>';
-  document.querySelectorAll('.gift').forEach(el=>el.onclick=()=>{
-    const to=$('gift-target').value;
-    if(!to){ toast('No one to send to'); return; }
-    socket.emit('sendGift',{token,toUserId:Number(to),giftId:el.dataset.id});
-  });
+  document.querySelectorAll('.gift').forEach(el=>el.onclick=()=>selectGift(el.dataset.id));
 }
+function selectGift(giftId){
+  selectedGift = giftId; selectedQty = 1;
+  const g = CATALOG.gifts.find(x => x.id === giftId);
+  if(!g) return;
+  document.querySelectorAll('.gift').forEach(el => el.classList.toggle('selected', el.dataset.id === giftId));
+  $('gift-selected-emoji').textContent = g.emoji;
+  $('gift-selected-name').textContent = g.name;
+  document.querySelectorAll('.gift-qty').forEach(b => b.classList.toggle('gold', Number(b.dataset.qty) === 1));
+  updateGiftSendBtn();
+  $('gift-selected-bar').classList.remove('hidden');
+  $('gift-selected-bar').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function updateGiftSendBtn(){
+  const g = CATALOG.gifts.find(x => x.id === selectedGift);
+  if(!g) return;
+  const total = g.price * selectedQty;
+  $('gift-selected-price').textContent = `${g.currency==='diamond'?'💎':'🪙'} ${fmt(g.price)} x ${selectedQty} = ${fmt(total)}`;
+  $('btn-gift-send').textContent = `🎁 SEND x${selectedQty} (${fmt(total)} ${g.currency==='diamond'?'💎':'🪙'})`;
+}
+document.querySelectorAll('.gift-qty').forEach(b=>b.onclick=()=>{
+  selectedQty = Number(b.dataset.qty);
+  document.querySelectorAll('.gift-qty').forEach(x => x.classList.toggle('gold', x === b));
+  updateGiftSendBtn();
+});
+$('btn-gift-send').onclick=()=>{
+  const to=$('gift-target').value;
+  if(!to){ toast('No one to send to'); return; }
+  if(!selectedGift){ toast('Pick a gift first'); return; }
+  // Send multiple gifts (batch)
+  let sent = 0;
+  const sendNext = () => {
+    if(sent >= selectedQty){ $('gift-balance').textContent = fmt(me?me.coins:0); return; }
+    socket.emit('sendGift',{token,toUserId:Number(to),giftId:selectedGift});
+    sent++;
+    // Small delay between batch sends to avoid flooding
+    if(sent < selectedQty) setTimeout(sendNext, 300);
+    else setTimeout(()=>{ $('gift-balance').textContent = fmt(me?me.coins:0); }, 500);
+  };
+  sendNext();
+  toast(`🎁 Sending x${selectedQty}...`);
+};
 socket.on('giftError', m=>toast(m));
 socket.on('giftEvent', d=>{
   const layer=$('gift-layer');
