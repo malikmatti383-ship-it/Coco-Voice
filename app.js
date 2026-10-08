@@ -347,8 +347,9 @@ function renderRoom(){
   $('btn-mic').classList.toggle('muted',myMuted);
   $('btn-hand').classList.toggle('on',handRaised);
   $('btn-leave-seat').classList.toggle('hidden',mySeat===null);
-  $('gift-target').innerHTML=r.seats.filter(s=>s&&me&&s.userId!==me.id)
-    .map(s=>`<option value="${s.userId}" ${giftTargetPreset==s.userId?'selected':''}>${esc(s.user.displayName)} (VIP ${s.user.vip})</option>`).join('')
+  $('gift-target').innerHTML=`<option value="${me?me.id:''}" ${giftTargetPreset==(me?me.id:'')?'selected':''}>🎁 Myself</option>`+
+    r.seats.filter(s=>s&&me&&s.userId!==me.id)
+    .map(s=>`<option value="${s.userId}" ${giftTargetPreset==s.userId?'selected':''}>${esc(s.user.displayName)} (VIP ${activeVipOf(s.user)})</option>`).join('')
     || '<option value="">—</option>';
   giftTargetPreset=null;
 }

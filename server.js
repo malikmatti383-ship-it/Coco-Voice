@@ -799,10 +799,12 @@ io.on('connection', (socket) => {
     const c = conns.get(socket.id); const r = rooms.get(c.roomId); if (!r) return;
     const gift = GIFT_MAP[giftId]; if (!gift) return;
     const target = getUser(Number(toUserId));
-    if (!target || target.id === user.id) return socket.emit('giftError', 'Pick another user on a mic seat.');
-    const seated = r.seats.some(s => s && s.userId === target.id);
-    if (!seated) return socket.emit('giftError', 'That user is not on a mic seat.');
-    if (gift.coupleOnly && user.coupleWith !== target.id)
+    if (!target) return socket.emit('giftError', 'Pick a user on a mic seat.');
+    const isSelfGift = target.id === user.id;
+    // Target must be on a mic seat (self-gifting allowed — sender must be seated)
+    const targetSeated = r.seats.some(s => s && s.userId === target.id);
+    if (!targetSeated) return socket.emit('giftError', 'That user is not on a mic seat.');
+    if (!isSelfGift && gift.coupleOnly && user.coupleWith !== target.id)
       return socket.emit('giftError', 'Couple gifts can only be sent to your partner 💑');
     const currency = gift.currency || 'coin';
     if (currency === 'coin') {
@@ -830,7 +832,9 @@ io.on('connection', (socket) => {
       from: publicUser(user), to: publicUser(target), gift, bonus,
       currency: currency === 'diamond' ? '💎' : '🪙'
     });
-    let txt = `${user.displayName} sent ${gift.emoji} ${gift.name} to ${target.displayName}`;
+    let txt = isSelfGift
+      ? `${user.displayName} sent ${gift.emoji} ${gift.name} to themselves 🎁`
+      : `${user.displayName} sent ${gift.emoji} ${gift.name} to ${target.displayName}`;
     if (bonus) txt += ` — 🍀 Lucky! ${target.displayName} got ${bonus} bonus ${currency === 'diamond' ? 'diamonds' : 'coins'}!`;
     io.to('room:' + r.id).emit('chatMsg', { sys: true, text: txt, ts: Date.now() });
   });
