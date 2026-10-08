@@ -1422,7 +1422,7 @@ io.on('connection', (socket) => {
     socket.emit('superResult', { ok: true, action: 'listOwners', users: list });
   });
 
-  /* ----- reseller (can ONLY add coins to users; every grant is logged) ----- */
+  /* ----- reseller (sells ONLY from own balance; every sale deducted + logged) ----- */
   socket.on('resellerAddCoins', ({ token, q, amount }) => {
     const user = me(token);
     if (!isReseller(user)) return socket.emit('resellerResult', { ok: false, error: 'Reseller access required.' });
@@ -1431,10 +1431,15 @@ io.on('connection', (socket) => {
       return socket.emit('resellerResult', { ok: false, error: 'Amount must be 1–1,000,000.' });
     const t = findUserQ(q);
     if (!t) return socket.emit('resellerResult', { ok: false, error: 'User not found.' });
+    if (t.id === user.id) return socket.emit('resellerResult', { ok: false, error: 'Cannot sell coins to yourself.' });
+    // RULE: reseller can only sell coins they actually have — deducted immediately
+    if ((user.coins || 0) < amount)
+      return socket.emit('resellerResult', { ok: false, error: `Insufficient balance. You have ${(user.coins || 0).toLocaleString()} coins.` });
+    user.coins -= amount;
     t.coins = (t.coins || 0) + amount;
-    saveUsers(); pushUserUpdate(t.id);
-    logResellerGrant({ resellerId: user.id, resellerName: user.displayName, targetId: t.id, targetName: t.displayName, amount });
-    socket.emit('resellerResult', { ok: true, user: publicUser(t), amount });
+    saveUsers(); pushUserUpdate(user.id); pushUserUpdate(t.id);
+    logResellerGrant({ resellerId: user.id, resellerName: user.displayName, targetId: t.id, targetName: t.displayName, amount, resellerBalanceAfter: user.coins });
+    socket.emit('resellerResult', { ok: true, user: publicUser(t), amount, yourBalance: user.coins });
   });
 
   /* ----- games (BEANS only — beans cannot buy gifts) ----- */

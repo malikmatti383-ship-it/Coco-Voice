@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=19">
+<link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
 <div id="app">
@@ -328,10 +328,11 @@
       <div class="room-title" data-i18n="resellerPanel">💰 Reseller Panel</div>
     </header>
     <div class="admin-card">
-      <p class="sub" data-i18n="resellerDesc">Sell coins: add coins to any user's account. Every sale is recorded in the reseller log.</p>
+      <p class="sub" data-i18n="resellerDesc">Sell coins from YOUR balance. Deducted immediately. Every sale is logged.</p>
+      <div class="stat-row"><span>🪙 Your balance</span><b id="reseller-balance">—</b></div>
       <input id="reseller-q" data-i18n-ph="buyerPh" placeholder="Buyer's CoCo ID or username">
-      <input id="reseller-amount" type="number" min="1" max="1000000" data-i18n-ph="coinsPh" placeholder="Coins to add">
-      <button id="btn-reseller-add" class="btn primary" data-i18n="addCoins">Add Coins 💰</button>
+      <input id="reseller-amount" type="number" min="1" max="1000000" data-i18n-ph="coinsPh" placeholder="Coins to sell">
+      <button id="btn-reseller-add" class="btn primary" data-i18n="addCoins">Sell Coins 💰</button>
       <p id="reseller-out" class="sub" style="margin-top:10px"></p>
     </div>
   </section>
@@ -339,6 +340,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

@@ -845,7 +845,7 @@ $('btn-open-dashboard').onclick=()=>{ $('admin-lock').classList.remove('hidden')
 /* ----- inline super unlock in Settings, like the Redeem Code card (first-time owner setup) ----- */
 $('btn-super-unlock').onclick=()=>{ $('super-error').textContent=''; socket.emit('superUnlock',{token,code:$('super-code').value}); };
 $('btn-super-grant').onclick=()=>{ const q=$('super-q').value.trim(); if(!q){ toast(t('superQPh')); return; } $('super-out').textContent='…'; socket.emit('superGrantOwner',{token,q}); };
-$('btn-open-reseller').onclick=()=>{ $('reseller-out').textContent=''; showView('view-reseller'); };
+$('btn-open-reseller').onclick=()=>{ $('reseller-out').textContent=''; $('reseller-balance').textContent=fmt(me?me.coins:0)+' 🪙'; showView('view-reseller'); };
 $('btn-back-reseller').onclick=()=>{ renderSettings(); showView('view-settings'); };
 socket.on('roleResult', d=>{
   if(!d.ok){ toast(d.error); return; }
@@ -1138,8 +1138,9 @@ $('btn-reseller-add').onclick=()=>{
 };
 socket.on('resellerResult', d=>{
   if(!d.ok){ toast(d.error||'Failed'); $('reseller-out').textContent=d.error||'Failed'; return; }
-  $('reseller-out').textContent=`✅ ${d.amount} 🪙 → ${d.user.displayName} (ID ${d.user.id})`;
+  $('reseller-out').textContent=`✅ ${d.amount} 🪙 → ${d.user.displayName} (ID ${d.user.id}) — your balance: ${fmt(d.yourBalance)} 🪙`;
   $('reseller-q').value=''; $('reseller-amount').value='';
+  if(me){ me.coins=d.yourBalance; renderMe(); renderStoreChips(); }
 });
 
 /* ================= boot ================= */
