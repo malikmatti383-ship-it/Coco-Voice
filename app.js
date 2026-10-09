@@ -185,10 +185,18 @@ function tagsHtml(tags){
 }
 function vipBadgeHtml(v, expires){
   if(!v) return '';
-  let s = `<span class="vip-badge ${vipClass(v)}" style="border:1px solid currentColor">${VIP_NAMES[v]}</span>`;
+  let s;
+  if(v===6){
+    // SVIP6: high-res image badge
+    s = `<img class="vip6-badge" src="svip6.jpg?v=31" alt="SVIP6" title="SVIP6">`;
+  } else {
+    s = `<span class="vip-badge ${vipClass(v)}" style="border:1px solid currentColor">${VIP_NAMES[v]}</span>`;
+  }
   if(expires) s += `<div class="sub">${t('vipExpires')}: ${new Date(expires).toLocaleDateString()}</div>`;
   return s;
 }
+// SVIP6 avatar frame: VIP6 users automatically get the dragon frame around their avatar
+function vipFrameClass(u){ return activeVipOf(u)===6 ? 'fr-svip6' : ''; }
 function frameClass(u){ return u && u.frame ? 'fr-'+u.frame : ''; }
 function daysLeft(ts){ return Math.max(0, Math.ceil((ts - Date.now())/864e5)); }
 function fmt(n){ return Number(n||0).toLocaleString('en-US'); }
@@ -396,7 +404,7 @@ function enterRoom(state){
 }
 function seatAvatar(s){
   const fr = s.user.frame ? `fr-${s.user.frame}` : '';
-  return `<div class="frame-wrap ${fr}"><div class="s-avatar">${esc(s.user.avatar)}</div></div>`;
+  return `<div class="frame-wrap ${fr} ${vipFrameClass(s.user)}"><div class="s-avatar">${esc(s.user.avatar)}</div></div>`;
 }
 function renderRoom(){
   const r=currentRoom; if(!r) return;
@@ -484,7 +492,7 @@ socket.on('userCard', d=>{
   }
   $('user-sheet-body').innerHTML=`
     <div style="text-align:center">
-      <div class="frame-wrap ${u.frame?'fr-'+u.frame:''}"><div class="avatar big">${esc(u.avatar)}</div></div>
+      <div class="frame-wrap ${u.frame?'fr-'+u.frame:''} ${vipFrameClass(u)}"><div class="avatar big">${esc(u.avatar)}</div></div>
       <h3 class="${vipClass(activeVipOf(u))}">${esc(u.displayName)}</h3>
       <div class="sub">ID ${u.id} · @${esc(u.username)}</div>
       <div>${tagsHtml(u.tags)}</div>
@@ -825,7 +833,7 @@ function renderProfile(){
   const u = viewingUser || me;
   const isSelf = !viewingUser;
   $('profile-avatar-big').textContent=u.avatar;
-  $('profile-frame-wrap').className='frame-wrap '+(u.frame?'fr-'+u.frame:'');
+  $('profile-frame-wrap').className='frame-wrap '+(u.frame?'fr-'+u.frame:'')+' '+vipFrameClass(u);
   $('profile-name').innerHTML=nameHtml(u);
   $('profile-vip').innerHTML=vipBadgeHtml(activeVipOf(u), u.vipExpires)+
     ` <span class="lvl-badge lvl-wealth">💰 ${u.wealthLevel||1}</span> <span class="lvl-badge lvl-charm">💖 ${u.charmLevel||1}</span>`;
@@ -976,7 +984,7 @@ function renderStore(){
       const owned=ownedMap[l];
       const isActive=activeLevel===l;
       const daysLeft=owned?Math.ceil((owned.expires-now)/864e5):0;
-      return `<div class="vip-card" ${isActive?'style="border-color:var(--gold);box-shadow:var(--gold-shadow)"':''}><div class="vhead"><span style="font-size:30px">👑</span>
+      return `<div class="vip-card" ${isActive?'style="border-color:var(--gold);box-shadow:var(--gold-shadow)"':''}><div class="vhead">${l===6?'<img src="svip6.jpg?v=31" style="width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 0 12px rgba(255,180,0,.6);border:2px solid #ffd700">':'<span style="font-size:30px">👑</span>'}
         <div><b class="${vipClass(l)}">${VIP_NAMES[l]}</b><div class="vprice">🪙 ${fmt(price)}</div>
         ${owned?`<div class="sub" style="color:${isActive?'#B8860B':'var(--dim)'}">${isActive?'✅ Active':'🎒 Owned'} — ${daysLeft} ${t('remainingDays')} left</div>`:'<div class="sub">Not owned</div>'}</div></div>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">

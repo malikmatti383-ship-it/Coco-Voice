@@ -239,6 +239,10 @@ h3{margin:6px 0 8px}
 .vipn8{background:linear-gradient(90deg,#ff3b6b,#b678ff,#3fb9ff);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
 
 /* ============ 30 avatar frames (pure CSS, gold-enhanced) ============ */
+/* SVIP6 dragon image frame (high-res) — auto-applied to VIP6 users */
+.frame-wrap.fr-svip6{position:relative;background:none;border:none;overflow:visible}
+.frame-wrap.fr-svip6::after{content:'';position:absolute;inset:-38%;background:url('svip6.jpg?v=31') center/contain no-repeat;pointer-events:none;z-index:3;filter:drop-shadow(0 0 10px rgba(255,180,0,.55))}
+.vip6-badge{width:56px;height:56px;border-radius:50%;object-fit:cover;vertical-align:middle;box-shadow:0 0 14px rgba(255,180,0,.65);border:2px solid #ffd700}
 .fr-f1{border:3px solid transparent;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(135deg,#ffd700,#ff9f1c) border-box;box-shadow:0 0 14px #ffd700}
 .fr-f2{border:3px solid transparent;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(135deg,#e8e8e8,#9aa3b2) border-box;box-shadow:0 0 12px #c0c0c0}
 .fr-f3{border:3px solid #39ffdc;box-shadow:0 0 16px #39ffdc, inset 0 0 8px #39ffdc88;animation:neonP 1.6s infinite alternate}

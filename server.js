@@ -27,7 +27,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // (no public/ folder), also serve the frontend files from the project root.
 // NOTHING else from the root is served: server.js, config.js, data/, etc.
 // stay private because only these explicit routes exist.
-for (const f of ['index.html', 'style.css', 'app.js', 'logo.webp']) {
+for (const f of ['index.html', 'style.css', 'app.js', 'logo.webp', 'svip6.jpg']) {
   app.get('/' + f, (req, res) => {
     const pub = path.join(__dirname, 'public', f);
     // index.html gets `Cache-Control: public, max-age=0` by default → the WebView
