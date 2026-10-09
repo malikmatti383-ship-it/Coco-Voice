@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CoCo-Voice Chat Room</title>
 <link rel="icon" type="image/webp" href="logo.webp">
-<link rel="stylesheet" href="style.css?v=31">
+<link rel="stylesheet" href="style.css?v=32">
 </head>
 <body>
 <div id="app">
@@ -291,18 +291,22 @@
       <button id="btn-settings" class="icon-btn" title="Settings">⚙️</button>
     </header>
     <div class="profile-hero">
-      <div id="profile-frame-wrap" class="frame-wrap"><div id="profile-avatar-big" class="avatar big">🙂</div></div>
+      <div id="profile-frame-wrap" class="frame-wrap" title="Tap to change photo"><div id="profile-avatar-big" class="avatar big">🙂</div></div>
+      <input type="file" id="avatar-upload" accept="image/*" class="hidden">
       <h2 id="profile-name">—</h2>
       <div id="profile-vip"></div>
       <div id="profile-tags" class="tags"></div>
       <div id="profile-couple" class="sub"></div>
+      <div id="svip-toggle-row" class="hidden" style="margin:6px 0">
+        <button id="btn-svip-toggle" class="btn small gold">🐉 SVIP6 Frame: ON</button>
+      </div>
       <div class="stat4">
         <div><b id="st-follow">0</b><span data-i18n="follow">Follow</span></div>
         <div><b id="st-fans">0</b><span data-i18n="fans">Fans</span></div>
         <div><b id="st-sent">0</b><span data-i18n="sent">Sent</span></div>
         <div><b id="st-recv">0</b><span data-i18n="received">Receive</span></div>
       </div>
-      <div class="stat-row"><span data-i18n="cocoId">CoCo ID</span><b id="profile-id">—</b></div>
+      <div class="stat-row"><span data-i18n="cocoId">CoCo ID</span><span><b id="profile-id">—</b> <button id="btn-copy-id" class="btn small" title="Copy ID">📋</button></span></div>
     </div>
     <div style="padding:0 12px">
       <div class="balance-cards">
@@ -450,6 +454,6 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=31"></script>
+<script src="app.js?v=32"></script>
 </body>
 </html>

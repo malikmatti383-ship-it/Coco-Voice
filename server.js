@@ -633,7 +633,20 @@ io.on('connection', (socket) => {
   socket.on('updateProfile', ({ token, displayName, avatar }) => {
     const user = me(token); if (!user) return;
     if (displayName) user.displayName = String(displayName).slice(0, 24);
-    if (avatar) user.avatar = String(avatar).slice(0, 4);
+    if (avatar) {
+      const av = String(avatar);
+      // Allow emoji (short) or photo (data URL / https URL, max ~500KB)
+      if (av.startsWith('data:image/') && av.length < 500000) user.avatar = av;
+      else if (/^https?:\/\//i.test(av) && av.length < 500) user.avatar = av;
+      else user.avatar = av.slice(0, 4);
+    }
+    saveUsers(); pushUserUpdate(user.id);
+    socket.emit('profileSaved', publicUser(user, true));
+  });
+  // SVIP6 frame ON/OFF toggle
+  socket.on('toggleSvipFrame', ({ token, off }) => {
+    const user = me(token); if (!user) return;
+    user.svipFrameOff = !!off;
     saveUsers(); pushUserUpdate(user.id);
     socket.emit('profileSaved', publicUser(user, true));
   });

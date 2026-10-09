@@ -187,16 +187,24 @@ function vipBadgeHtml(v, expires){
   if(!v) return '';
   let s;
   if(v===6){
-    // SVIP6: high-res image badge
-    s = `<img class="vip6-badge" src="svip6.jpg?v=31" alt="SVIP6" title="SVIP6">`;
+    // SVIP6: small inline badge like reference (not huge)
+    s = `<img class="vip6-badge-sm" src="svip6.jpg?v=32" alt="SVIP6" title="SVIP6">`;
   } else {
     s = `<span class="vip-badge ${vipClass(v)}" style="border:1px solid currentColor">${VIP_NAMES[v]}</span>`;
   }
   if(expires) s += `<div class="sub">${t('vipExpires')}: ${new Date(expires).toLocaleDateString()}</div>`;
   return s;
 }
-// SVIP6 avatar frame: VIP6 users automatically get the dragon frame around their avatar
-function vipFrameClass(u){ return activeVipOf(u)===6 ? 'fr-svip6' : ''; }
+// SVIP6 avatar frame: VIP6 users automatically get the dragon frame around their avatar (unless turned off)
+function vipFrameClass(u){ return (activeVipOf(u)===6 && !(u&&u.svipFrameOff)) ? 'fr-svip6' : ''; }
+// Avatar renderer: supports emoji OR uploaded photo
+function avatarHtml(av, cls){
+  cls = cls || 'avatar';
+  if(av && (String(av).startsWith('data:image') || /^https?:\/\//i.test(String(av)))){
+    return `<img class="${cls} avatar-photo" src="${esc(String(av))}" alt="">`;
+  }
+  return `<div class="${cls}">${esc(av||'🙂')}</div>`;
+}
 function frameClass(u){ return u && u.frame ? 'fr-'+u.frame : ''; }
 function daysLeft(ts){ return Math.max(0, Math.ceil((ts - Date.now())/864e5)); }
 function fmt(n){ return Number(n||0).toLocaleString('en-US'); }
@@ -404,7 +412,10 @@ function enterRoom(state){
 }
 function seatAvatar(s){
   const fr = s.user.frame ? `fr-${s.user.frame}` : '';
-  return `<div class="frame-wrap ${fr} ${vipFrameClass(s.user)}"><div class="s-avatar">${esc(s.user.avatar)}</div></div>`;
+  const av = (s.user.avatar && (String(s.user.avatar).startsWith('data:image') || /^https?:\/\//i.test(String(s.user.avatar))))
+    ? `<img class="s-avatar avatar-photo" src="${esc(String(s.user.avatar))}" alt="" style="width:100%;height:100%;border-radius:50%">`
+    : `<div class="s-avatar">${esc(s.user.avatar)}</div>`;
+  return `<div class="frame-wrap ${fr} ${vipFrameClass(s.user)}">${av}</div>`;
 }
 function renderRoom(){
   const r=currentRoom; if(!r) return;
@@ -832,11 +843,15 @@ function renderProfile(){
   if(!me) return;
   const u = viewingUser || me;
   const isSelf = !viewingUser;
-  $('profile-avatar-big').textContent=u.avatar;
+  $('profile-avatar-big').outerHTML = avatarHtml(u.avatar, 'avatar big').replace('class="avatar big', 'id="profile-avatar-big" class="avatar big');
   $('profile-frame-wrap').className='frame-wrap '+(u.frame?'fr-'+u.frame:'')+' '+vipFrameClass(u);
   $('profile-name').innerHTML=nameHtml(u);
   $('profile-vip').innerHTML=vipBadgeHtml(activeVipOf(u), u.vipExpires)+
     ` <span class="lvl-badge lvl-wealth">💰 ${u.wealthLevel||1}</span> <span class="lvl-badge lvl-charm">💖 ${u.charmLevel||1}</span>`;
+  // SVIP6 frame toggle (only for VIP6 users, on own profile)
+  const showToggle = isSelf && activeVipOf(u)===6;
+  $('svip-toggle-row').classList.toggle('hidden', !showToggle);
+  if(showToggle) $('btn-svip-toggle').textContent = u.svipFrameOff ? '🐉 SVIP6 Frame: OFF' : '🐉 SVIP6 Frame: ON';
   $('profile-tags').innerHTML=tagsHtml(u.tags);
   $('profile-couple').innerHTML = u.coupleWith ? `${t('myPartner')}: <b>${esc(u.coupleName||('ID '+u.coupleWith))}</b> 💑` : `<span class="sub">${t('noPartner')}</span>`;
   $('st-follow').textContent=u.following||0; $('st-fans').textContent=u.followers||0;
@@ -850,6 +865,45 @@ function renderProfile(){
   document.querySelectorAll('.ptab').forEach(x=>x.classList.toggle('hidden', !isSelf && x.dataset.pt==='edit'));
   renderProfileBody();
 }
+// Tap avatar → pick photo from phone gallery
+$('profile-frame-wrap').onclick=()=>{
+  if(viewingUser) return; // only own profile
+  $('avatar-upload').click();
+};
+$('avatar-upload').onchange=(e)=>{
+  const file=e.target.files[0]; if(!file) return;
+  if(!file.type.startsWith('image/')){ toast('Pick an image file'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    // Resize to max 256px to keep it small
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.createElement('canvas');
+      const s=Math.min(1, 256/Math.max(img.width,img.height));
+      c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      const dataUrl=c.toDataURL('image/jpeg',0.85);
+      if(confirm('Use this photo as your profile picture?')){
+        socket.emit('updateProfile',{token,avatar:dataUrl});
+        toast('📸 Profile photo updated!');
+      }
+    };
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+};
+// Copy CoCo ID
+$('btn-copy-id').onclick=()=>{
+  const id=$('profile-id').textContent;
+  if(navigator.clipboard) navigator.clipboard.writeText(id).then(()=>toast('📋 ID copied: '+id));
+  else { const t=document.createElement('textarea'); t.value=id; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); toast('📋 ID copied!'); }
+};
+// SVIP6 frame ON/OFF
+$('btn-svip-toggle').onclick=()=>{
+  if(!me) return;
+  socket.emit('toggleSvipFrame',{token,off:!me.svipFrameOff});
+};
 function myDressItem(kind, id){
   const list = kind==='frame' ? (me.frames||[]) : (me.entries||[]);
   return list.find(x=>x.id===id);
@@ -984,7 +1038,7 @@ function renderStore(){
       const owned=ownedMap[l];
       const isActive=activeLevel===l;
       const daysLeft=owned?Math.ceil((owned.expires-now)/864e5):0;
-      return `<div class="vip-card" ${isActive?'style="border-color:var(--gold);box-shadow:var(--gold-shadow)"':''}><div class="vhead">${l===6?'<img src="svip6.jpg?v=31" style="width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 0 12px rgba(255,180,0,.6);border:2px solid #ffd700">':'<span style="font-size:30px">👑</span>'}
+      return `<div class="vip-card" ${isActive?'style="border-color:var(--gold);box-shadow:var(--gold-shadow)"':''}><div class="vhead">${l===6?'<img src="svip6.jpg?v=32" style="width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 0 12px rgba(255,180,0,.6);border:2px solid #ffd700">':'<span style="font-size:30px">👑</span>'}
         <div><b class="${vipClass(l)}">${VIP_NAMES[l]}</b><div class="vprice">🪙 ${fmt(price)}</div>
         ${owned?`<div class="sub" style="color:${isActive?'#B8860B':'var(--dim)'}">${isActive?'✅ Active':'🎒 Owned'} — ${daysLeft} ${t('remainingDays')} left</div>`:'<div class="sub">Not owned</div>'}</div></div>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
