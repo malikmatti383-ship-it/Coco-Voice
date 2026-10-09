@@ -24,7 +24,7 @@ let agenciesCache = [];
 /* ================= i18n ================= */
 const I18N = {
 en:{
-  tagline:'Talk • Play • Gift • Shine', login:'Login', register:'Register',
+  tagline:'Talk • Play • Gift • Shine', login:'Login', register:'Register', loginGoogle:'Login with Google',
   usernamePh:'Username (3-20 letters/numbers)', passwordPh:'Password (4+ characters)',
   registerGet:'Register & Get 100 🪙 + 200 🫘',
   hint:'New here? Register and get <b>100 coins + 200 beans</b> 🎉',
@@ -89,7 +89,7 @@ en:{
   dmSent:'Message sent', profileSaved:'Profile saved ✅', coinsAdded:'Coins updated ✅',
 },
 ur:{
-  tagline:'بات کریں • کھیلیں • تحفے بھیجیں • چمکیں', login:'لاگ اِن', register:'رجسٹر',
+  tagline:'بات کریں • کھیلیں • تحفے بھیجیں • چمکیں', login:'لاگ اِن', register:'رجسٹر', loginGoogle:'گوگل سے لاگ اِن',
   usernamePh:'یوزرنیم (3-20 حروف)', passwordPh:'پاس ورڈ (4+ حروف)',
   registerGet:'رجسٹر کریں اور 100 🪙 + 200 🫘 پائیں',
   hint:'نئے ہیں؟ رجسٹر کریں اور <b>100 کوائنز + 200 بینز</b> 🎉 پائیں',
@@ -188,7 +188,7 @@ function vipBadgeHtml(v, expires){
   let s;
   if(v===6){
     // SVIP6: small inline badge like reference (not huge)
-    s = `<img class="vip6-badge-sm" src="svip6.jpg?v=32" alt="SVIP6" title="SVIP6">`;
+    s = `<img class="vip6-badge-sm" src="svip6.jpg?v=33" alt="SVIP6" title="SVIP6">`;
   } else {
     s = `<span class="vip-badge ${vipClass(v)}" style="border:1px solid currentColor">${VIP_NAMES[v]}</span>`;
   }
@@ -214,11 +214,17 @@ function hasTag(tag){ return me && Array.isArray(me.tags) && me.tags.includes(ta
 let authMode='login';
 $('tab-login').onclick=()=>{authMode='login';$('tab-login').classList.add('active');$('tab-register').classList.remove('active');$('auth-btn').textContent=t('login');};
 $('tab-register').onclick=()=>{authMode='register';$('tab-register').classList.add('active');$('tab-login').classList.remove('active');$('auth-btn').textContent=t('registerGet');};
-$('auth-btn').onclick=()=>{
-  const u=$('auth-username').value.trim(), p=$('auth-password').value;
+$('auth-btn').onclick=()=>{  const u=$('auth-username').value.trim(), p=$('auth-password').value;
   $('auth-error').textContent='';
   socket.emit(authMode, {username:u, password:p});
 };
+// Google (Gmail) login — same WebView/browser, no external app needed
+$('btn-google').onclick=()=>{ location.href='/auth/google'; };
+// Show Google error if redirected back with ?gerr=1
+if(new URLSearchParams(location.search).get('gerr')==='1'){
+  $('auth-error').textContent='Google login failed. Please try again.';
+  history.replaceState(null,'',location.pathname);
+}
 socket.on('catalog', c=>{ CATALOG=c; });
 socket.on('auth', d=>{
   if(!d.ok){
@@ -1038,7 +1044,7 @@ function renderStore(){
       const owned=ownedMap[l];
       const isActive=activeLevel===l;
       const daysLeft=owned?Math.ceil((owned.expires-now)/864e5):0;
-      return `<div class="vip-card" ${isActive?'style="border-color:var(--gold);box-shadow:var(--gold-shadow)"':''}><div class="vhead">${l===6?'<img src="svip6.jpg?v=32" style="width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 0 12px rgba(255,180,0,.6);border:2px solid #ffd700">':'<span style="font-size:30px">👑</span>'}
+      return `<div class="vip-card" ${isActive?'style="border-color:var(--gold);box-shadow:var(--gold-shadow)"':''}><div class="vhead">${l===6?'<img src="svip6.jpg?v=33" style="width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 0 12px rgba(255,180,0,.6);border:2px solid #ffd700">':'<span style="font-size:30px">👑</span>'}
         <div><b class="${vipClass(l)}">${VIP_NAMES[l]}</b><div class="vprice">🪙 ${fmt(price)}</div>
         ${owned?`<div class="sub" style="color:${isActive?'#B8860B':'var(--dim)'}">${isActive?'✅ Active':'🎒 Owned'} — ${daysLeft} ${t('remainingDays')} left</div>`:'<div class="sub">Not owned</div>'}</div></div>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">

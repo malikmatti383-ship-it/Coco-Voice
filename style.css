@@ -241,7 +241,7 @@ h3{margin:6px 0 8px}
 /* ============ 30 avatar frames (pure CSS, gold-enhanced) ============ */
 /* SVIP6 dragon image frame (high-res) — auto-applied to VIP6 users */
 .frame-wrap.fr-svip6{position:relative;background:none;border:none;overflow:visible}
-.frame-wrap.fr-svip6::after{content:'';position:absolute;inset:-38%;background:url('svip6.jpg?v=32') center/contain no-repeat;pointer-events:none;z-index:3;filter:drop-shadow(0 0 10px rgba(255,180,0,.55))}
+.frame-wrap.fr-svip6::after{content:'';position:absolute;inset:-38%;background:url('svip6.jpg?v=33') center/contain no-repeat;pointer-events:none;z-index:3;filter:drop-shadow(0 0 10px rgba(255,180,0,.55))}
 .vip6-badge-sm{height:30px;border-radius:8px;vertical-align:middle;box-shadow:0 0 10px rgba(255,180,0,.6);border:1px solid #ffd700}
 .avatar-photo{object-fit:cover;border-radius:50%}
 .avatar.big.avatar-photo{width:84px;height:84px}
@@ -312,3 +312,8 @@ h3{margin:6px 0 8px}
 /* RTL */
 [dir="rtl"] .lang-btn{right:auto;left:12px}
 [dir="rtl"] input{text-align:right}
+
+/* Google social login (Ayome-style) */
+.social-login{margin:12px 0 4px}
+.social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border-radius:28px;border:none;font-size:16px;font-weight:600;cursor:pointer;background:#fff;color:#555;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.social-btn:active{transform:scale(.98)}

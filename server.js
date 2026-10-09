@@ -44,6 +44,101 @@ app.get('/api/has-owner', (req, res) => {
   res.json({ hasOwner: users.some(u => hasTag(u, 'OWNER')) });
 });
 
+/* ============================ Google (Gmail) login ============================ */
+// Configured via Render env vars: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (from Google Cloud Console).
+// Owner protection: ONLY the designated OWNER_EMAIL gets the OWNER tag — nobody else, ever.
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
+const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
+const APP_BASE_URL = (process.env.APP_URL || 'https://coco-voice.onrender.com').replace(/\/$/, '');
+const GOOGLE_REDIRECT = APP_BASE_URL + '/auth/google/callback';
+const designatedOwnerEmail = () => (process.env.OWNER_EMAIL || '').trim().toLowerCase();
+
+function grantOwnerIfDesignated(user) {
+  const oe = designatedOwnerEmail();
+  if (oe && (user.email || '').toLowerCase() === oe && !hasTag(user, 'OWNER')) {
+    user.tags.push('OWNER'); saveUsers();
+  }
+  const on = (process.env.OWNER_USERNAME || '').trim().toLowerCase();
+  if (on && user.username.toLowerCase() === on && !hasTag(user, 'OWNER')) {
+    user.tags.push('OWNER'); saveUsers();
+  }
+}
+
+// Step 1: redirect user to Google
+app.get('/auth/google', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(500).send('<h2>Google login not set up yet.</h2><p>Ask the app owner to add GOOGLE_CLIENT_ID.</p>');
+  const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT,
+    response_type: 'code',
+    scope: 'email profile',
+    prompt: 'select_account',
+  }).toString();
+  res.redirect(url);
+});
+
+// Step 2: Google redirects back here with a code
+app.get('/auth/google/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) return res.redirect('/?gerr=1');
+  try {
+    // Exchange code for access token
+    const tokRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code: String(code), client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT, grant_type: 'authorization_code',
+      }).toString(),
+    });
+    const tokData = await tokRes.json();
+    if (!tokData.access_token) throw new Error('token exchange failed');
+    // Fetch the user's Google profile (email + name + picture)
+    const infoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: 'Bearer ' + tokData.access_token },
+    });
+    const info = await infoRes.json();
+    if (!info.email) throw new Error('no email from Google');
+    const email = String(info.email).toLowerCase();
+
+    // Find existing user by email, or create one
+    let user = users.find(u => (u.email || '').toLowerCase() === email);
+    if (!user) {
+      // Build a unique username from the email name part
+      let base = email.split('@')[0].replace(/[^A-Za-z0-9_]/g, '').slice(0, 16) || 'user';
+      let uname = base, n = 1;
+      while (getUserByName(uname)) { uname = (base + n).slice(0, 20); n++; }
+      user = {
+        id: nextCoCoId++,
+        username: uname,
+        passHash: '', // Google-only account, no password
+        displayName: String(info.name || uname).slice(0, 24),
+        avatar: '🙂',
+        email,
+        vip: 0, vipExpires: null, activeVip: 0, ownedVips: [], tags: [],
+        wealthXp: 0, charmXp: 0,
+        coins: config.STARTING_COINS, diamonds: config.STARTING_DIAMONDS, beans: config.STARTING_BEANS,
+        frames: [], entries: [], activeFrame: null, activeEntry: null,
+        coupleWith: null, receivedGifts: {}, sentGifts: 0,
+        followers: [], following: [], blocked: false,
+      };
+      users.push(user);
+    } else if (user.blocked) {
+      return res.send('<h2>⛔ This account is blocked.</h2><a href="/">Back</a>');
+    }
+    // Owner protection: only the designated email/username gets OWNER
+    grantOwnerIfDesignated(user);
+    saveUsers();
+    const tok = makeToken(); sessions.set(tok, user.id);
+    emitCatalog();
+    // Save token in this browser/WebView and enter the app
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CoCo-Voice</title></head><body style="font-family:sans-serif;text-align:center;padding:60px 20px"><h2>✅ Logged in with Google!</h2><p>Opening CoCo-Voice…</p><script>try{localStorage.setItem('coco_token','${tok}');}catch(e){}location.href='/';</scr` + `ipt></body></html>`);
+  } catch (e) {
+    console.error('[google-auth]', e.message);
+    res.redirect('/?gerr=1');
+  }
+});
+
 /* ============================ persistence ============================ */
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -586,14 +681,8 @@ io.on('connection', (socket) => {
       coupleWith: null, receivedGifts: {}, sentGifts: 0,
       followers: [], following: [], blocked: false,
     };
-    // Bootstrap: the designated OWNER_USERNAME always gets OWNER (survives data wipes).
-    // Otherwise, the first registered user becomes OWNER only if no users exist at all.
-    const designatedOwner = (process.env.OWNER_USERNAME || config.OWNER_USERNAME || '').trim().toLowerCase();
-    if (designatedOwner && user.username.toLowerCase() === designatedOwner) {
-      if (!hasTag(user, 'OWNER')) user.tags.push('OWNER');
-    } else if (users.length === 0 && !users.some(u => hasTag(u, 'OWNER'))) {
-      user.tags.push('OWNER');
-    }
+    // Owner protection: ONLY the designated owner gets OWNER. No auto-owner for first user.
+    grantOwnerIfDesignated(user);
     users.push(user); saveUsers();
     const tok = makeToken(); sessions.set(tok, user.id);
     conns.get(socket.id).userId = user.id;
@@ -607,10 +696,7 @@ io.on('connection', (socket) => {
       return socket.emit('auth', { ok: false, error: 'Wrong username or password.' });
     if (user.blocked) return socket.emit('auth', { ok: false, error: 'This account is blocked. Contact support.' });
     // Designated owner always keeps OWNER tag on login (survives data wipes).
-    const designatedOwner = (process.env.OWNER_USERNAME || config.OWNER_USERNAME || '').trim().toLowerCase();
-    if (designatedOwner && user.username.toLowerCase() === designatedOwner && !hasTag(user, 'OWNER')) {
-      user.tags.push('OWNER'); saveUsers();
-    }
+    grantOwnerIfDesignated(user);
     if (sweepExpiry(user)) saveUsers();
     const tok = makeToken(); sessions.set(tok, user.id);
     conns.get(socket.id).userId = user.id;
